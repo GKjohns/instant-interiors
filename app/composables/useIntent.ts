@@ -37,7 +37,7 @@ type IntentEvent
     | { t: 'drop', dropped: DroppedOp }
     | { t: 'done', ms: number, model: string, count: number, firstOpMs?: number, error?: string }
 
-const MODEL_KEY = 'hearth.model'
+const MODEL_KEY = 'instant-interiors.model'
 const phase = shallowRef<IntentPhase>('idle')
 const inflight = shallowRef(0)
 const interim = shallowRef('')
@@ -60,7 +60,7 @@ function loadPrefs() {
   try {
     const m = localStorage.getItem(MODEL_KEY)
     if ((INTENT_MODELS as readonly string[]).includes(m ?? '')) model.value = m as IntentModel
-    sent.value = Number(localStorage.getItem('hearth.sent') ?? 0) || 0
+    sent.value = Number(localStorage.getItem('instant-interiors.sent') ?? 0) || 0
   } catch {
     // storage blocked: defaults
   }
@@ -176,7 +176,7 @@ async function build(request: string, ctx: OpContext, source: 'text' | 'voice' =
   pendingText.value = [...pendingText.value, text]
   sent.value++
   try {
-    localStorage.setItem('hearth.sent', String(sent.value))
+    localStorage.setItem('instant-interiors.sent', String(sent.value))
   } catch {
     // not persisted; fine
   }

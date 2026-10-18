@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // DEV PAGE, not part of the product and linked from nowhere. The renderer alone (no HUD, no intent, no
-// save) for scripts/render-check.mjs, which drives it through `window.__hearthRenderer`. Visit
+// save) for scripts/render-check.mjs, which drives it through `window.__iiRenderer`. Visit
 // /dev/renderer to walk the sample apartment by hand.
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { TWO_BED_APARTMENT } from '../../../shared/plan/samples.ts'
@@ -69,7 +69,7 @@ onMounted(() => {
     anticipate: (p: Vec2 | null) => renderer!.anticipate(p),
     fps: () => fps.value
   }
-  ;(window as unknown as { __hearthRenderer: typeof api }).__hearthRenderer = api
+  ;(window as unknown as { __iiRenderer: typeof api }).__iiRenderer = api
 })
 
 onBeforeUnmount(() => {

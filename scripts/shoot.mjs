@@ -1,7 +1,7 @@
 // Headless tour of the home through the real models, with a screenshot after every sentence.
 // Usage: node scripts/shoot.mjs [--port 3092 | --url http://localhost:3092/] [--w 1440 --h 900] [--out dir] [--skip-extract]
-// Reuses a Hearth dev server on --port when one is up, otherwise boots one and stops it at the end.
-// Shots land in internal_docs/20261017_hearth_v0/shots/ as tour_NN_<slug>.png; the plan reader is run on
+// Reuses a Instant Interiors dev server on --port when one is up, otherwise boots one and stops it at the end.
+// Shots land in internal_docs/20261017_instant_interiors_v0/shots/ as tour_NN_<slug>.png; the plan reader is run on
 // public/samples/desktop_2br.png and that home is shot in plan and walk view. Ends with a table.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -39,7 +39,7 @@ const shot = async (slug) => {
   shots.push(await screenshot(page, shotFile(outDir, 'tour', shots.length + 1, slug)))
 }
 const summary = () => page.evaluate(() => {
-  const s = window.__hearth.state()
+  const s = window.__ii.state()
   const by = {}
   for (const i of s.items) by[i.kind] = (by[i.kind] || 0) + 1
   return { items: s.items.length, by, log: s.log.map(b => b.id), light: s.light }
@@ -49,15 +49,15 @@ const rows = []
 /** One sentence through the real model (gaze snapshot taken now, as the bar does); settle; screenshot. */
 const ask = async (text, slug, settle = 1800) => {
   const t0 = Date.now()
-  const out = await page.evaluate(t => window.__hearth.ask(t), text)
+  const out = await page.evaluate(t => window.__ii.ask(t), text)
   const wall = Date.now() - t0
-  await page.waitForFunction(() => window.__hearth.phase() !== 'thinking', null, { timeout: 30000 }).catch(() => {})
+  await page.waitForFunction(() => window.__ii.phase() !== 'thinking', null, { timeout: 30000 }).catch(() => {})
   await wait(settle)
-  const entry = await page.evaluate(() => window.__hearth.lastEntry())
+  const entry = await page.evaluate(() => window.__ii.lastEntry())
   const ops = out.ops.map(o => o.op === 'place' ? `place ${o.kind}${o.count ? `×${o.count}` : ''}` : o.op === 'say' ? 'say' : o.op)
   rows.push({ sentence: text, ops: ops.join(', ') || '—', firstOpMs: out.firstOpMs ?? '—', appliedMs: out.firstAppliedMs ?? '—', ms: out.ms, wall, model: out.model ?? '—', error: out.error ?? (out.dropped.length ? `${out.dropped.length} dropped` : ''), say: out.say ?? '' })
   console.log(`“${text}” → ${out.summary} · ${out.model} first op ${out.firstOpMs ?? '-'} ms · done ${out.ms} ms${out.error ? ` · ERROR ${out.error}` : ''}${entry?.notes?.length ? ` · notes: ${entry.notes.join('; ')}` : ''}${out.say ? ` · “${out.say}”` : ''}`)
-  const phase = await page.evaluate(() => window.__hearth.phase())
+  const phase = await page.evaluate(() => window.__ii.phase())
   if (phase === 'thinking') console.log('  !! phase pill stuck on thinking')
   await shot(slug)
   return out
@@ -90,10 +90,10 @@ await shot('hud_history')
 await page.keyboard.press('Escape')
 await blurAll() // focus lands back on the button, whose tooltip would otherwise sit in the next shot
 await wait(500)
-await page.evaluate(() => window.__hearth.mode('plan'))
+await page.evaluate(() => window.__ii.mode('plan'))
 await wait(1500)
 await shot('plan_view')
-await page.evaluate(() => window.__hearth.mode('walk'))
+await page.evaluate(() => window.__ii.mode('walk'))
 await wait(800)
 
 // The typed path: Enter focuses the bar, the sentence is typed (snapshot on the first key), Enter sends.
@@ -103,11 +103,11 @@ await wait(300)
 await shot('typing')
 const typed0 = Date.now()
 await page.keyboard.press('Enter')
-await page.waitForFunction(() => window.__hearth.phase() === 'thinking', null, { timeout: 5000 }).catch(() => {})
-await page.waitForFunction(() => window.__hearth.phase() !== 'thinking', null, { timeout: 30000 })
+await page.waitForFunction(() => window.__ii.phase() === 'thinking', null, { timeout: 5000 }).catch(() => {})
+await page.waitForFunction(() => window.__ii.phase() !== 'thinking', null, { timeout: 30000 })
 // The model and latency are stamped on the entry once the stream ends, a beat after the first op lands.
-await page.waitForFunction(() => window.__hearth.lastEntry()?.ms !== undefined, null, { timeout: 30000 }).catch(() => {})
-const typedEntry = await page.evaluate(() => window.__hearth.lastEntry())
+await page.waitForFunction(() => window.__ii.lastEntry()?.ms !== undefined, null, { timeout: 30000 }).catch(() => {})
+const typedEntry = await page.evaluate(() => window.__ii.lastEntry())
 rows.push({ sentence: 'put a plant in the corner (typed)', ops: (typedEntry?.ops || []).map(o => o.op === 'place' ? `place ${o.kind}` : o.op).join(', ') || '—', firstOpMs: '—', appliedMs: '—', ms: typedEntry?.ms ?? '—', wall: Date.now() - typed0, model: typedEntry?.model ?? '—', error: typedEntry?.error ?? '', say: (typedEntry?.say || []).join(' ') })
 await wait(1800)
 await shot('typed_plant')
@@ -120,7 +120,7 @@ if (!skipExtract) {
   const dataUrl = `data:image/png;base64,${png.toString('base64')}`
   console.log(`extract: desktop_2br.png (${Math.round(png.length / 1024)} KB)…`)
   const t0 = Date.now()
-  const res = await page.evaluate(d => window.__hearth.extract(d, '2 bedroom apartment, dimensions in feet'), dataUrl)
+  const res = await page.evaluate(d => window.__ii.extract(d, '2 bedroom apartment, dimensions in feet'), dataUrl)
   const wall = Date.now() - t0
   if (res.ok) {
     console.log(`  ok: ${res.plan.name} · ${res.plan.rooms.length} rooms (${res.plan.rooms.map(r => r.name).join(', ')}) · ${res.plan.openings.length} openings · ${res.ms} ms server / ${wall} ms wall · $${(res.costUsd ?? 0).toFixed(4)} · notes: ${res.notes.join('; ') || '-'}`)
@@ -136,10 +136,10 @@ if (!skipExtract) {
   await page.keyboard.press('Escape')
   await blurAll()
   await wait(400)
-  await page.evaluate(() => window.__hearth.mode('plan'))
+  await page.evaluate(() => window.__ii.mode('plan'))
   await wait(1500)
   await shot('extract_plan')
-  await page.evaluate(() => window.__hearth.mode('walk'))
+  await page.evaluate(() => window.__ii.mode('walk'))
   await wait(800)
   await shot('extract_walk')
   await ask('take me to the living room', 'extract_living')

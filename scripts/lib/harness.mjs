@@ -1,6 +1,6 @@
-// What every browser script needs: flags, a Hearth dev server (reused or booted), a WebGL-capable headless
-// Chromium, the scene-ready wait and screenshots. The scripts drive the app through `window.__hearth`
-// (app/components/HomeScene.client.vue) or `window.__hearthRenderer` (app/pages/dev/renderer.vue).
+// What every browser script needs: flags, a Instant Interiors dev server (reused or booted), a WebGL-capable headless
+// Chromium, the scene-ready wait and screenshots. The scripts drive the app through `window.__ii`
+// (app/components/HomeScene.client.vue) or `window.__iiRenderer` (app/pages/dev/renderer.vue).
 import { execSync, spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-export const SHOTS_DIR = resolve(ROOT, 'internal_docs/20261017_hearth_v0/shots')
+export const SHOTS_DIR = resolve(ROOT, 'internal_docs/20261017_instant_interiors_v0/shots')
 
 /** `--key value` flags: `opt('--port', 3092)` and `has('--keep')`. */
 export function flags(argv = process.argv.slice(2)) {
@@ -46,10 +46,10 @@ async function portBusy(port) {
 }
 
 /**
- * Another project's dev server may own the port, so only reuse one that serves Hearth. The page is
+ * Another project's dev server may own the port, so only reuse one that serves Instant Interiors. The page is
  * client-rendered (no title in the HTML), so the plan reader's "image is required" is the fingerprint.
  */
-async function isHearth(port) {
+async function isInstantInteriors(port) {
   try {
     const res = await fetch(`http://localhost:${port}/api/plan/extract`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(5000) })
     return res.ok && /image is required/.test(await res.text())
@@ -59,19 +59,19 @@ async function isHearth(port) {
 }
 
 /**
- * A Hearth server on `port`: reused when it is already up, else booted with `nuxt dev` (and stopped by
+ * A Instant Interiors server on `port`: reused when it is already up, else booted with `nuxt dev` (and stopped by
  * `stop()`). `boot: false` only reuses. A port held by something else throws, or with `nextFree` moves on
  * to the next free port.
  */
 export async function devServer({ port, boot = true, nextFree = false }) {
   const found = { port, url: `http://localhost:${port}/`, stop: () => {} }
-  if (await isHearth(port)) {
-    console.log(`reusing the Hearth dev server on :${port}`)
+  if (await isInstantInteriors(port)) {
+    console.log(`reusing the Instant Interiors dev server on :${port}`)
     return found
   }
-  if (!boot) throw new Error(`no Hearth dev server on :${port}`)
+  if (!boot) throw new Error(`no Instant Interiors dev server on :${port}`)
   if (await portBusy(port)) {
-    if (!nextFree) throw new Error(`port ${port} is busy but is not serving Hearth; pass --port <free port>`)
+    if (!nextFree) throw new Error(`port ${port} is busy but is not serving Instant Interiors; pass --port <free port>`)
     while (await portBusy(port)) port++
   }
   console.log(`booting the dev server on :${port}…`)
@@ -81,8 +81,8 @@ export async function devServer({ port, boot = true, nextFree = false }) {
       process.kill(-child.pid)
     } catch { /* already gone */ }
   }
-  for (let i = 0; i < 120 && !(await isHearth(port)); i++) await wait(1000)
-  if (!(await isHearth(port))) {
+  for (let i = 0; i < 120 && !(await isInstantInteriors(port)); i++) await wait(1000)
+  if (!(await isInstantInteriors(port))) {
     stop()
     throw new Error(`the dev server on :${port} did not come up`)
   }

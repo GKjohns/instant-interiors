@@ -33,7 +33,7 @@ async function onFile(e: Event) {
   if (!f) return
   try {
     const ok = await home.importJson(f)
-    if (!ok) toast.add({ title: 'Not a Hearth home', description: `${f.name} has no plan and op log in it.`, color: 'warning', icon: 'i-lucide-file-x' })
+    if (!ok) toast.add({ title: 'Not a Instant Interiors home', description: `${f.name} has no plan and op log in it.`, color: 'warning', icon: 'i-lucide-file-x' })
   } catch (err) {
     toast.add({ title: 'Could not import', description: (err as Error).message, color: 'error', icon: 'i-lucide-file-x' })
   }

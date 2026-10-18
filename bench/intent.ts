@@ -2,7 +2,7 @@
  * Intent bench: ~30 utterances × two small homes (bare and furnished) through the real model.
  *   node --env-file=.env bench/intent.ts                       # haiku
  *   node --env-file=.env bench/intent.ts sonnet --only sofa    # one model, cases whose name contains "sofa"
- *   node --env-file=.env bench/intent.ts --repeat 2 --md internal_docs/20261017_hearth_v0/intent_bench.md
+ *   node --env-file=.env bench/intent.ts --repeat 2 --md internal_docs/20261017_instant_interiors_v0/intent_bench.md
  * Scenes are hand-built HomeStates over the sample plan, and checks are on the strict ops (the expected op
  * names and their key fields), so the bench measures the model, not placement. Prints pass rate, first-op and done
  * latency, cost and which provider served it; `--md` also writes the results table.
@@ -222,7 +222,7 @@ function opBrief(o: Op): string {
 
 const started = Date.now()
 const runModels = models.length ? models : ['haiku']
-console.log(`Hearth intent bench · ${new Date().toISOString().slice(0, 16)} · ${cases.length} cases × ${repeat} · models ${runModels.join(', ')}\n`)
+console.log(`Instant Interiors intent bench · ${new Date().toISOString().slice(0, 16)} · ${cases.length} cases × ${repeat} · models ${runModels.join(', ')}\n`)
 const summary: string[] = []
 const md: string[] = [`# Intent bench · ${new Date().toISOString().slice(0, 10)}`, '', `${cases.length} utterances × ${repeat} over two homes (bare, furnished) on TWO_BED_APARTMENT; checks are on the strict ops (expected op + key fields) plus exactly one short \`say\` last.`, '']
 for (const model of runModels) {

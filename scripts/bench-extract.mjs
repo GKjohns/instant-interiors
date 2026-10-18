@@ -1,7 +1,7 @@
 /**
  * Plan-reader bench: every image in public/samples/ through extractPlan (no dev server), with and without a
  * hint, scored against ground truth where we have it (the drawn samples = shared/plan/samples.ts; the real
- * listing desktop_2br.png = the labels printed on it). Results land in internal_docs/20261017_hearth_v0/extract/.
+ * listing desktop_2br.png = the labels printed on it). Results land in internal_docs/20261017_instant_interiors_v0/extract/.
  *   node --env-file=.env scripts/bench-extract.mjs [--only desktop] [--model sonnet] [--hint-only|--no-hint] [--path object|text] [--reasoning minimal|low] [--conc 2]
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -22,7 +22,7 @@ const hints = has('--hint-only') ? [true] : has('--no-hint') ? [false] : [false,
 const HINT = 'A 2-bedroom apartment listing plan; the dimension labels are feet and inches.'
 
 const samplesDir = resolve(import.meta.dirname, '../public/samples')
-const outDir = resolve(import.meta.dirname, '../internal_docs/20261017_hearth_v0/extract')
+const outDir = resolve(import.meta.dirname, '../internal_docs/20261017_instant_interiors_v0/extract')
 mkdirSync(outDir, { recursive: true })
 
 const FT = 0.3048
@@ -217,7 +217,7 @@ async function pool(items, n, fn) {
   return out
 }
 
-console.log(`Hearth extract bench · ${new Date().toISOString().slice(0, 16)} · ${files.length} images × ${hints.length} · model ${model ?? 'sonnet'}\n`)
+console.log(`Instant Interiors extract bench · ${new Date().toISOString().slice(0, 16)} · ${files.length} images × ${hints.length} · model ${model ?? 'sonnet'}\n`)
 const rows = await pool(jobs, conc, run)
 const table = []
 let spent = 0

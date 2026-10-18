@@ -44,7 +44,7 @@ onMounted(async () => {
   if (!home.restore()) home.loadPlan(TWO_BED_APARTMENT, { furnish: true })
   // A handle for the shoot script (and for poking at the home from devtools).
   const w = window as unknown as Record<string, unknown>
-  w.__hearth = {
+  w.__ii = {
     run: home.run,
     undo: home.undo,
     reset: home.reset,

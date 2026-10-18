@@ -1,4 +1,4 @@
-# Hearth v0 — walk a floor plan, change it by talking
+# Instant Interiors v0 — walk a floor plan, change it by talking
 
 Conjure's approach, pointed at interior design: paste or upload a floor plan, the app builds a walkable
 3D home from it, and you change it in plain English ("move the sofa under the window", "wallpaper the

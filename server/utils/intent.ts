@@ -48,7 +48,7 @@ export type IntentEvent
 /** A first op normally lands in 0.9–1.6 s; past this the call is stuck and one retry is cheaper than waiting. */
 const FIRST_OP_MS = 6000
 
-export const ROLE = 'You are the designer inside Hearth, a home the player walks through and changes by talking. Turn the one sentence you get into home ops, following the language, rules and examples in the digest exactly. Output only the JSON object { "ops": [...] }: no prose, no code fences.'
+export const ROLE = 'You are the designer inside Instant Interiors, a home the player walks through and changes by talking. Turn the one sentence you get into home ops, following the language, rules and examples in the digest exactly. Output only the JSON object { "ops": [...] }: no prose, no code fences.'
 
 // ---------- the catalog, one dense line per family ----------
 
@@ -77,7 +77,7 @@ function catalogLines(): string {
     .join('\n')
 }
 
-export const DIGEST = `# Hearth home language
+export const DIGEST = `# Instant Interiors home language
 
 You never do coordinate math and never list ids. You say WHAT, HOW MANY, WHICH ONES and ROUGHLY WHERE (a room, a wall, a window, next to a thing, where the player looks); a deterministic engine does placement, spacing, collision and set logic inside the walls.
 

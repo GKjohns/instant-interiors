@@ -13,14 +13,14 @@ public/samples/desktop_2br.png
 internal_docs/**/shots/qa_*.png
 internal_docs/**/shots/tour_*.png
 internal_docs/**/shots/renderer_*.png
-!internal_docs/20261017_hearth_v0/shots/renderer_living_morning.png
-!internal_docs/20261017_hearth_v0/shots/renderer_primary_night.png
-!internal_docs/20261017_hearth_v0/shots/renderer_plan.png
-!internal_docs/20261017_hearth_v0/shots/renderer_living_floral.png
-!internal_docs/20261017_hearth_v0/shots/tour_04_floor_lamp.png
-!internal_docs/20261017_hearth_v0/shots/tour_17_extract_plan.png
-!internal_docs/20261017_hearth_v0/shots/tour_19_extract_living.png
-!internal_docs/20261017_hearth_v0/shots/qa_70_plan_view_finishes.png
+!internal_docs/20261017_instant_interiors_v0/shots/renderer_living_morning.png
+!internal_docs/20261017_instant_interiors_v0/shots/renderer_primary_night.png
+!internal_docs/20261017_instant_interiors_v0/shots/renderer_plan.png
+!internal_docs/20261017_instant_interiors_v0/shots/renderer_living_floral.png
+!internal_docs/20261017_instant_interiors_v0/shots/tour_04_floor_lamp.png
+!internal_docs/20261017_instant_interiors_v0/shots/tour_17_extract_plan.png
+!internal_docs/20261017_instant_interiors_v0/shots/tour_19_extract_living.png
+!internal_docs/20261017_instant_interiors_v0/shots/qa_70_plan_view_finishes.png
 # QA outputs qa.mjs rewrites on every run
 internal_docs/**/extract/qa_*.json
 internal_docs/**/qa_export.json

@@ -12,9 +12,9 @@ import type { FloorPlan } from '#shared/plan/schema'
 import { TWO_BED_APARTMENT } from '#shared/plan/samples'
 import type { HomeRenderer, Mode } from '../home/renderer'
 
-const STORAGE_KEY = 'hearth:home:v1'
+const STORAGE_KEY = 'instant-interiors:home:v1'
 /** The saved camera (saved on pagehide); a new plan or a reset forgets it so you start at the door. */
-export const VIEW_KEY = 'hearth.view'
+export const VIEW_KEY = 'instant-interiors.view'
 
 export interface HistoryEntry {
   n: number
@@ -215,7 +215,7 @@ function restore(): boolean {
     restoreView()
     return true
   } catch (err) {
-    console.warn('[hearth] could not restore the saved home', err)
+    console.warn('[instant-interiors] could not restore the saved home', err)
     return false
   }
 }
@@ -265,7 +265,7 @@ function exportJson() {
   const a = document.createElement('a')
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')
   a.href = URL.createObjectURL(blob)
-  a.download = `hearth-${state.value.plan.id}-${stamp}.json`
+  a.download = `instant-interiors-${state.value.plan.id}-${stamp}.json`
   a.click()
   URL.revokeObjectURL(a.href)
 }

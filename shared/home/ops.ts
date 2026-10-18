@@ -248,7 +248,7 @@ export function parseOps(raw: unknown): { ops: Op[], dropped: DroppedOp[] } {
     if (res.success) ops.push(stripUndefined(res.data) as Op)
     else dropped.push({ index, raw: item, reason: res.error.issues.map(i => `${i.path.join('.') || name}: ${i.message}`).join('; ') })
   })
-  for (const d of dropped) console.warn(`[hearth] dropped op #${d.index}: ${d.reason}`)
+  for (const d of dropped) console.warn(`[instant-interiors] dropped op #${d.index}: ${d.reason}`)
   return { ops, dropped }
 }
 
