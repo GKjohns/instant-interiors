@@ -3,20 +3,21 @@
  * plan rebuilds the same furniture and finishes (positions are seeded from each batch's stored context),
  * which is how undo, save and load all work. No three.js here, so tests and the server can use it.
  */
+import { hashSeed, round3 } from '../math.ts'
 import { yawToward } from '../plan/poly.ts'
 import { FloorPlanSchema, defaultSurfaces } from '../plan/schema.ts'
 import type { FloorPlan, Room, Surface } from '../plan/schema.ts'
 import { doorsOf, entry, longestEdge, planBounds, roomCenter, windowsOf } from '../plan/geometry.ts'
 import { FURNISH, kindOf, styleOf } from './kinds.ts'
 import type { KindDescriptor } from './kinds.ts'
-import { describeSel, hashSeed, poseBefore, resolveSpot } from './layout.ts'
+import { describeSel, poseBefore, resolveSpot } from './layout.ts'
 import type { Placed } from './layout.ts'
 import { parseOps } from './ops.ts'
 import type { DroppedOp, Op, Props } from './ops.ts'
 import { footprintOf, kindOfItem, resolveRoom, select } from './select.ts'
 import type { Batch, BatchResult, Effects, HomeState, Item, OpContext } from './types.ts'
 
-export const HOME_VERSION = 1
+const HOME_VERSION = 1
 
 export interface SavedHome {
   v: number
@@ -36,7 +37,7 @@ export function defaultContext(plan: FloorPlan): OpContext {
   return { gaze: { point: planBounds(plan).center }, player: { pos: e.pos, yaw: e.yaw, room: e.room }, seed: hashSeed(plan.id, 'furnish') }
 }
 
-export function emptyEffects(): Effects {
+function emptyEffects(): Effects {
   return { placed: [], moved: [], modified: [], removed: [], surfaces: [], light: false, reset: false, say: [], notes: [] }
 }
 
@@ -459,8 +460,4 @@ export function importHome(saved: unknown): HomeState | null {
     log.push({ id: b.id ?? '', label: b.label ?? '', ops, ctx: b.ctx, at: b.at ?? 0 })
   }
   return replayLog(plan.data, log)
-}
-
-function round3(v: number): number {
-  return Math.round(v * 1000) / 1000
 }

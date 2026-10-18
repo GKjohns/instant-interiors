@@ -1,7 +1,7 @@
 /**
  * The model's view of the home for one sentence: the trimmed scene the client posts to /api/intent and
- * the compact text block the intent digest is followed by. Pure data, no three.js, no kernel imports
- * (sprint A's state/select/layout land in parallel): room facts come straight from the plan polygons.
+ * the compact text block the intent digest is followed by. Pure data, no three.js. Room facts come
+ * straight from the plan polygons, so the server can build the block from a posted scene alone.
  *
  * Haiku pays for every token here, so the block is terse: one line per room, one line per room's items
  * (grouped by kind), the gaze, the light. Items are never listed by id: the selector language has no id
@@ -61,7 +61,7 @@ export function wallOf(room: Pick<Room, 'polygon'>, at: Vec2): WallSide {
   return compassOf(nearestEdge(at, room.polygon).normal)
 }
 
-export function trimRoom(room: Room, openings: Opening[]): SceneRoom {
+function trimRoom(room: Room, openings: Opening[]): SceneRoom {
   const windows = new Set<WallSide>()
   const doors: SceneRoom['doors'] = []
   for (const o of openings) {
@@ -83,7 +83,7 @@ export function trimRoom(room: Room, openings: Opening[]): SceneRoom {
   }
 }
 
-export function trimPlan(plan: FloorPlan): Pick<Scene, 'plan' | 'rooms'> {
+function trimPlan(plan: FloorPlan): Pick<Scene, 'plan' | 'rooms'> {
   return {
     plan: { id: plan.id, name: plan.name, north: plan.north },
     rooms: plan.rooms.map(r => trimRoom(r, plan.openings))

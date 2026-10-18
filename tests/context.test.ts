@@ -1,6 +1,6 @@
 /**
  * The model's view: trimScene over a hand-built HomeState on the sample plan, the context block, direction
- * words, and the lenient scene round trip. No kernel import (sprint A), so items are built by hand.
+ * words, and the lenient scene round trip. Items are built by hand, so the block is tested apart from placement.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

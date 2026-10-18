@@ -10,6 +10,7 @@ export default defineNuxtConfig({
   },
   compatibilityDate: '2026-06-30',
   eslint: { config: { stylistic: { commaDangle: 'never', braceStyle: '1tbs' } } },
+  // @nuxt/ui brings @nuxt/fonts; Cormorant Garamond (the display face) is picked up from main.css.
   fonts: {
     families: [{ name: 'Geist', provider: 'google', weights: [400, 500, 600] }]
   }

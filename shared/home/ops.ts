@@ -7,9 +7,10 @@
  * layout.ts) resolves every Spot into metres deterministically, seeded from the sentence.
  *
  * `OpsEnvelope` is loose (so one odd field never loses a sentence); `parseOps` is strict per op and drops
- * the bad ones with a reason. Mirrors conjure's shared/world/ops.ts.
+ * the bad ones with a reason.
  */
 import { z } from 'zod'
+import { clamp } from '../math.ts'
 import { PATTERNS } from '../plan/schema.ts'
 
 export const OP_NAMES = ['place', 'move', 'remove', 'restyle', 'surface', 'light', 'furnish', 'goto', 'undo', 'reset', 'say'] as const
@@ -41,7 +42,7 @@ export type Arrangement = typeof ARRANGEMENTS[number]
 export const MAX_COUNT = 24
 
 const num = (min: number, max: number, int = false) => z.preprocess(
-  v => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, int ? Math.round(v) : v)) : v),
+  v => (typeof v === 'number' && Number.isFinite(v) ? clamp(int ? Math.round(v) : v, min, max) : v),
   z.number()
 )
 const POS = 0.01

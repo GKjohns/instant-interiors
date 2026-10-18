@@ -1,83 +1,25 @@
 // Headless tour of the home through the real models, with a screenshot after every sentence.
-// Usage: node scripts/shoot.mjs [--url http://localhost:3092/] [--w 1440 --h 900] [--out dir] [--skip-extract]
-// Reuses a dev server on :3092 when one is up (lsof), otherwise boots one and stops it at the end.
+// Usage: node scripts/shoot.mjs [--port 3092 | --url http://localhost:3092/] [--w 1440 --h 900] [--out dir] [--skip-extract]
+// Reuses a Hearth dev server on --port when one is up, otherwise boots one and stops it at the end.
 // Shots land in internal_docs/20261017_hearth_v0/shots/ as tour_NN_<slug>.png; the plan reader is run on
 // public/samples/desktop_2br.png and that home is shot in plan and walk view. Ends with a table.
-import { chromium } from 'playwright'
-import { execSync, spawn } from 'node:child_process'
-import { mkdirSync, readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { ROOT, SHOTS_DIR, collectErrors, devServer, flags, freshStart, launch, rel, screenshot, shotFile } from './lib/harness.mjs'
+import { textTable } from './lib/table.mjs'
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const args = process.argv.slice(2)
-const opt = (k, d) => {
-  const i = args.indexOf(k)
-  return i >= 0 ? args[i + 1] : d
-}
-const port = Number(opt('--port', 3092))
-const url = opt('--url', `http://localhost:${port}/`)
+const { opt, has } = flags()
 const width = Number(opt('--w', 1440))
 const height = Number(opt('--h', 900))
-const outDir = resolve(opt('--out', resolve(root, 'internal_docs/20261017_hearth_v0/shots')))
-const skipExtract = args.includes('--skip-extract')
-mkdirSync(outDir, { recursive: true })
+const outDir = resolve(opt('--out', SHOTS_DIR))
+const skipExtract = has('--skip-extract')
+const server = opt('--url') ? { url: opt('--url'), stop: () => {} } : await devServer({ port: Number(opt('--port', 3092)) })
+const url = server.url
 
-// ---------- the dev server ----------
-let server = null
-const portBusy = () => {
-  try {
-    return execSync(`lsof -i :${port} -sTCP:LISTEN -t`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().length > 0
-  } catch {
-    return false
-  }
-}
-// Something else may own the port (another project's dev server): only reuse it if it serves Hearth.
-// The page is client-rendered (no title in the HTML), so the plan reader's "image is required" is the fingerprint.
-const up = async () => {
-  try {
-    const res = await fetch(new URL('/api/plan/extract', url), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
-    return res.ok && /image is required/.test(await res.text())
-  } catch {
-    return false
-  }
-}
-if (portBusy()) {
-  if (!(await up())) throw new Error(`port ${port} is busy but is not serving Hearth; pass --port <free port>`)
-} else {
-  console.log(`booting the dev server on :${port}…`)
-  server = spawn('npx', ['nuxt', 'dev', '--port', String(port)], { cwd: root, stdio: 'ignore', detached: true })
-}
-for (let i = 0; i < 120 && !(await up()); i++) await new Promise(r => setTimeout(r, 1000))
-if (!(await up())) throw new Error(`no Hearth server at ${url}`)
-
-// ---------- the browser ----------
-const browser = await chromium.launch({
-  headless: true,
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl']
-})
+const browser = await launch('swiftshader')
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 })
-const errors = []
-page.on('console', (m) => {
-  if (m.type() === 'error') errors.push(m.text().slice(0, 200))
-  if (m.type() === 'error' || m.type() === 'warning') console.log('[browser]', m.type(), m.text().slice(0, 200))
-})
-page.on('pageerror', (e) => {
-  errors.push(e.message)
-  console.log('[pageerror]', e.message)
-})
-
-const ready = async () => {
-  await page.waitForFunction(() => window.__sceneReady === true, null, { timeout: 90000 })
-  await page.waitForSelector('canvas', { timeout: 30000 })
-  await page.evaluate(() => document.querySelectorAll('#nuxt-devtools-container, nuxt-devtools-anchor, [id^="nuxt-devtools"]').forEach(e => e.remove()))
-}
-// A fresh first run every time: no saved home, no saved camera, whisper showing.
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.evaluate(() => localStorage.clear())
-await page.reload({ waitUntil: 'networkidle' })
-await ready()
-await page.waitForTimeout(2500) // the shell builds, fonts land
+const errors = collectErrors(page, { echo: true })
+await freshStart(page, url, 2500)
 
 const wait = ms => page.waitForTimeout(ms)
 /** Drop focus (a closed panel hands it back to its button, and a focused button shows its tooltip). */
@@ -94,10 +36,7 @@ const shot = async (slug) => {
     await page.mouse.move(width / 2, height / 2 - 160, { steps: 6 })
     await wait(400)
   }
-  const out = resolve(outDir, `tour_${String(shots.length + 1).padStart(2, '0')}_${slug}.png`)
-  await page.screenshot({ path: out })
-  shots.push(out)
-  console.log('  shot', out.replace(root + '/', ''))
+  shots.push(await screenshot(page, shotFile(outDir, 'tour', shots.length + 1, slug)))
 }
 const summary = () => page.evaluate(() => {
   const s = window.__hearth.state()
@@ -177,7 +116,7 @@ console.log('focus after send:', focusAfter, '(INPUT would steal WASD)')
 
 // ---------- the plan reader ----------
 if (!skipExtract) {
-  const png = readFileSync(resolve(root, 'public/samples/desktop_2br.png'))
+  const png = readFileSync(resolve(ROOT, 'public/samples/desktop_2br.png'))
   const dataUrl = `data:image/png;base64,${png.toString('base64')}`
   console.log(`extract: desktop_2br.png (${Math.round(png.length / 1024)} KB)…`)
   const t0 = Date.now()
@@ -208,20 +147,9 @@ if (!skipExtract) {
 }
 
 // ---------- the table ----------
-const cols = ['sentence', 'ops', 'firstOpMs', 'appliedMs', 'ms', 'wall', 'model', 'error']
-const widths = cols.map(c => Math.min(60, Math.max(c.length, ...rows.map(r => String(r[c] ?? '').length))))
-const cell = (v, w) => String(v ?? '').slice(0, w).padEnd(w)
-console.log('\n' + cols.map((c, i) => cell(c, widths[i])).join(' │ '))
-console.log(widths.map(w => '─'.repeat(w)).join('─┼─'))
-for (const r of rows) console.log(cols.map((c, i) => cell(r[c], widths[i])).join(' │ '))
-console.log(`\n${shots.length} shots in ${outDir.replace(root + '/', '')}`)
+console.log(`\n${textTable(['sentence', 'ops', 'firstOpMs', 'appliedMs', 'ms', 'wall', 'model', 'error'], rows)}`)
+console.log(`\n${shots.length} shots in ${rel(outDir)}`)
 if (errors.length) console.log(`browser errors (${errors.length}):\n  ${[...new Set(errors)].slice(0, 12).join('\n  ')}`)
 
 await browser.close()
-if (server) {
-  try {
-    process.kill(-server.pid)
-  } catch {
-    // already gone
-  }
-}
+server.stop()

@@ -2,40 +2,19 @@
  * The app's one home: the pure HomeState, the renderer it drives, and the HUD's history of batches.
  * Everything that changes the home goes through `run`, so the light chips, the history drawer and the
  * model brain (useIntent) share one path: snapshot the gaze → applyBatch → renderer.sync → save.
- * Mirrors conjure's useWorld.
  */
 import { shallowRef } from 'vue'
 import { applyBatch, createHome, defaultContext, diffStates, exportHome, extendLastBatch, importHome } from '#shared/home/state'
 import type { DroppedOp, Op } from '#shared/home/ops'
-import type { Batch, BatchResult, Effects, HomeState, OpContext, Vec2 } from '#shared/home/types'
+import type { Batch, BatchResult, Effects, HomeState, OpContext } from '#shared/home/types'
 import { KIT } from '#shared/home/kinds'
 import type { FloorPlan } from '#shared/plan/schema'
 import { TWO_BED_APARTMENT } from '#shared/plan/samples'
+import type { HomeRenderer, Mode } from '../home/renderer'
 
 const STORAGE_KEY = 'hearth:home:v1'
 /** The saved camera (saved on pagehide); a new plan or a reset forgets it so you start at the door. */
 export const VIEW_KEY = 'hearth.view'
-
-export type ViewMode = 'walk' | 'plan'
-
-/** The renderer surface the composables code against (app/home/renderer.ts, sprint D1). */
-export interface HomeRendererApi {
-  camera: { position: { x: number, y: number, z: number } }
-  yaw: number
-  pitch: number
-  mode: ViewMode
-  sync(state: HomeState, effects?: Effects): void
-  setMode(mode: ViewMode): void
-  gaze(): { point: Vec2, itemId?: string, room?: string }
-  player(): { pos: Vec2, yaw: number, room?: string }
-  look(yaw: number, pitch: number, pos?: Vec2): void
-  teleport(pos: Vec2, yaw?: number): void
-  spawn(plan: FloorPlan): void
-  highlight(itemId: string | null): void
-  toScreen(p: Vec2, y?: number): { x: number, y: number, visible: boolean }
-  anticipate(point: Vec2 | null): void
-  dispose(): void
-}
 
 export interface HistoryEntry {
   n: number
@@ -74,8 +53,8 @@ const caption = shallowRef<{ text: string, at: number } | null>(null)
 const currentRoom = shallowRef<{ id: string, name: string } | null>(null)
 /** The catalog label of the item under the crosshair ("floor lamp"), for the hover tag. */
 const gazeLabel = shallowRef('')
-const mode = shallowRef<ViewMode>('walk')
-let renderer: HomeRendererApi | null = null
+const mode = shallowRef<Mode>('walk')
+let renderer: HomeRenderer | null = null
 let counter = 0
 let poll: ReturnType<typeof setInterval> | undefined
 
@@ -255,7 +234,7 @@ function saveView() {
 
 function restoreView() {
   try {
-    const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? 'null') as { yaw: number, pitch: number, x: number, z: number, mode?: ViewMode } | null
+    const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? 'null') as { yaw: number, pitch: number, x: number, z: number, mode?: Mode } | null
     if (v && [v.yaw, v.pitch, v.x, v.z].every(Number.isFinite)) renderer?.look(v.yaw, v.pitch, [v.x, v.z])
   } catch {
     // Nothing saved, or unreadable: keep the spawn view.
@@ -270,7 +249,7 @@ function forgetView() {
   }
 }
 
-function setMode(m: ViewMode) {
+function setMode(m: Mode) {
   mode.value = m
   renderer?.setMode(m)
 }
@@ -315,7 +294,7 @@ function tick() {
   }
 }
 
-function attach(r: HomeRendererApi) {
+function attach(r: HomeRenderer) {
   renderer = r
   r.sync(state.value, diffStates(createHome(state.value.base), state.value))
   r.setMode(mode.value)

@@ -6,7 +6,7 @@
  */
 import type { Vec2 } from '../../shared/plan/poly.ts'
 
-export interface LookHandlers {
+interface LookHandlers {
   /** Pixels dragged (or pointer-lock movement). */
   turn(dx: number, dy: number): void
   /** Wheel deltaY, or a pinch expressed in the same units. */

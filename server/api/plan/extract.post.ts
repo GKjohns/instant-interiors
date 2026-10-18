@@ -1,6 +1,6 @@
 /**
  * POST /api/plan/extract { image: dataURL, hint? } → ExtractResult as JSON, always status 200: the client
- * shows `reason` in the HUD rather than a generic 500. The client downsizes the image first (sprint D2);
+ * shows `reason` in the HUD rather than a generic 500. The client downsizes the image first (usePlan);
  * the size checks here are the backstop. One wall-clock budget of 60 s covers both model paths.
  */
 import { extractPlan } from '../../utils/planExtract'

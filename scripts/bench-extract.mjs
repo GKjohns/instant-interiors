@@ -9,18 +9,16 @@ import { basename, extname, resolve } from 'node:path'
 import { extractPlan } from '../server/utils/planExtract.ts'
 import { SAMPLES } from '../shared/plan/samples.ts'
 import { area, bounds, centroid, dist } from '../shared/plan/poly.ts'
+import { flags } from './lib/harness.mjs'
+import { mdTable } from './lib/table.mjs'
 
-const argv = process.argv.slice(2)
-const flag = (k) => {
-  const i = argv.indexOf(k)
-  return i >= 0 ? argv[i + 1] : undefined
-}
-const only = flag('--only')
-const forcePath = flag('--path')
-const reasoning = flag('--reasoning')
-const model = flag('--model')
-const conc = Number(flag('--conc') ?? 2)
-const hints = argv.includes('--hint-only') ? [true] : argv.includes('--no-hint') ? [false] : [false, true]
+const { opt, has } = flags()
+const only = opt('--only')
+const forcePath = opt('--path')
+const reasoning = opt('--reasoning')
+const model = opt('--model')
+const conc = Number(opt('--conc', 2))
+const hints = has('--hint-only') ? [true] : has('--no-hint') ? [false] : [false, true]
 const HINT = 'A 2-bedroom apartment listing plan; the dimension labels are feet and inches.'
 
 const samplesDir = resolve(import.meta.dirname, '../public/samples')
@@ -117,15 +115,19 @@ function doorBetween(plan, a, b) {
   return false
 }
 
-function scoreDesktop(plan, truth) {
+/** A pass/fail list: `check(ok, what)` records a line, `result()` the tally. */
+function scorecard() {
   const lines = []
   let pass = 0
-  let total = 0
   const check = (ok, what) => {
-    total++
     if (ok) pass++
     lines.push(`${ok ? 'ok  ' : 'FAIL'} ${what}`)
   }
+  return { check, result: () => ({ pass, total: lines.length, lines }) }
+}
+
+function scoreDesktop(plan, truth) {
+  const { check, result } = scorecard()
   check(plan.rooms.length >= truth.minRooms, `rooms ≥ ${truth.minRooms} (got ${plan.rooms.length})`)
   for (const [type, n] of Object.entries(truth.counts)) {
     const got = plan.rooms.filter(r => r.type === type).length
@@ -151,18 +153,11 @@ function scoreDesktop(plan, truth) {
   const t = tiling(plan)
   check(t.coverage >= 0.85 && t.coverage <= 1.05, `coverage ${pct(t.coverage)} (0.85–1.05)`)
   check(t.overlaps === 0, `overlaps ${t.overlaps}${t.pairs.length ? ` (${t.pairs.join(', ')})` : ''}`)
-  return { pass, total, lines }
+  return result()
 }
 
 function scoreSample(plan, truth) {
-  const lines = []
-  let pass = 0
-  let total = 0
-  const check = (ok, what) => {
-    total++
-    if (ok) pass++
-    lines.push(`${ok ? 'ok  ' : 'FAIL'} ${what}`)
-  }
+  const { check, result } = scorecard()
   check(plan.rooms.length === truth.rooms.length, `room count ${plan.rooms.length} vs ${truth.rooms.length}`)
   const sum = p => p.rooms.reduce((s, r) => s + area(r.polygon), 0)
   check(pctErr(sum(plan), sum(truth)) <= 0.15, `total area ${sum(plan).toFixed(1)} vs ${sum(truth).toFixed(1)} m² (${pct(pctErr(sum(plan), sum(truth)))} off)`)
@@ -190,7 +185,7 @@ function scoreSample(plan, truth) {
   const t = tiling(plan)
   check(t.coverage >= 0.85 && t.coverage <= 1.05, `coverage ${pct(t.coverage)}`)
   check(t.overlaps === 0, `overlaps ${t.overlaps}${t.pairs.length ? ` (${t.pairs.join(', ')})` : ''}`)
-  return { pass, total, lines }
+  return result()
 }
 
 // ---------- runner ----------
@@ -224,14 +219,14 @@ async function pool(items, n, fn) {
 
 console.log(`Hearth extract bench · ${new Date().toISOString().slice(0, 16)} · ${files.length} images × ${hints.length} · model ${model ?? 'sonnet'}\n`)
 const rows = await pool(jobs, conc, run)
-const table = ['| image | hint | path | ms | cost | rooms | doors/openings/windows | coverage | overlaps | score |', '|---|---|---|---|---|---|---|---|---|---|']
+const table = []
 let spent = 0
 for (const { job, res, score, til } of rows) {
   spent += res.costUsd ?? 0
   console.log(`\n=== ${job.file} ${job.hint ? '(hint)' : '(no hint)'} · ${res.ok ? `path ${res.path}` : 'FAILED'} · ${res.ms} ms · $${(res.costUsd ?? 0).toFixed(4)}`)
   if (!res.ok) {
     console.log(`  reason: ${res.reason}`)
-    table.push(`| ${job.file} | ${job.hint ? 'y' : 'n'} | ${res.path ?? '-'} | ${res.ms} | $${(res.costUsd ?? 0).toFixed(3)} | - | failed: ${res.reason.slice(0, 60)} | | | |`)
+    table.push([job.file, job.hint ? 'y' : 'n', res.path ?? '-', res.ms, `$${(res.costUsd ?? 0).toFixed(3)}`, '-', `failed: ${res.reason.slice(0, 60)}`, '', '', ''])
     continue
   }
   const p = res.plan
@@ -249,9 +244,9 @@ for (const { job, res, score, til } of rows) {
     console.log(`  score ${score.pass}/${score.total}`)
     for (const l of score.lines) console.log(`    ${l}`)
   }
-  table.push(`| ${job.file} | ${job.hint ? 'y' : 'n'} | ${res.path} | ${res.ms} | $${res.costUsd.toFixed(3)} | ${p.rooms.length} | ${counts.door}/${counts.opening}/${counts.window} | ${pct(til.coverage)} | ${til.overlaps} | ${score ? `${score.pass}/${score.total}` : '-'} |`)
+  table.push([job.file, job.hint ? 'y' : 'n', res.path, res.ms, `$${res.costUsd.toFixed(3)}`, p.rooms.length, `${counts.door}/${counts.opening}/${counts.window}`, pct(til.coverage), til.overlaps, score ? `${score.pass}/${score.total}` : '-'])
 }
 console.log(`\ntotal spend $${spent.toFixed(4)}`)
-const readme = `# Plan-reader bench · ${new Date().toISOString().slice(0, 16)}\n\nmodel ${model ?? 'sonnet'} · hint: "${HINT}"\n\n${table.join('\n')}\n\nTotal spend $${spent.toFixed(4)}. Per-run JSON (loose + normalized plan + score lines) sits next to this file.\n`
+const readme = `# Plan-reader bench · ${new Date().toISOString().slice(0, 16)}\n\nmodel ${model ?? 'sonnet'} · hint: "${HINT}"\n\n${mdTable(['image', 'hint', 'path', 'ms', 'cost', 'rooms', 'doors/openings/windows', 'coverage', 'overlaps', 'score'], table)}\n\nTotal spend $${spent.toFixed(4)}. Per-run JSON (loose + normalized plan + score lines) sits next to this file.\n`
 writeFileSync(resolve(outDir, 'README.md'), readme)
 console.log(`wrote ${resolve(outDir, 'README.md')}`)

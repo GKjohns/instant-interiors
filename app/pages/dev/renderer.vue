@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// Dev harness for the renderer alone (no HUD, no intent): scripts/render-check.mjs drives it through
-// `window.__hearthRenderer`. Visit /dev/renderer to walk the sample apartment by hand.
+// DEV PAGE, not part of the product and linked from nowhere. The renderer alone (no HUD, no intent, no
+// save) for scripts/render-check.mjs, which drives it through `window.__hearthRenderer`. Visit
+// /dev/renderer to walk the sample apartment by hand.
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { TWO_BED_APARTMENT } from '../../../shared/plan/samples.ts'
 import { createHome } from '../../../shared/home/state.ts'

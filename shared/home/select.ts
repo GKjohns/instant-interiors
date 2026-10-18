@@ -3,6 +3,7 @@
  * living room" or "that" and this decides. Also the footprint maths every other module shares (size with
  * props applied, rotated corners). Pure over plain home data.
  */
+import { clamp } from '../math.ts'
 import { area, dist, pointInPolygon } from '../plan/poly.ts'
 import type { Vec2 } from '../plan/poly.ts'
 import { ROOM_TYPES, normalizeId, roomTypeOf } from '../plan/schema.ts'
@@ -15,7 +16,7 @@ import type { Props, Selector } from './ops.ts'
 import type { HomeState, Item, OpContext } from './types.ts'
 
 /** Indoors, "near" means a couple of metres, not conjure's fifteen. */
-export const DEFAULT_WITHIN = 2.5
+const DEFAULT_WITHIN = 2.5
 
 export interface Footprint {
   length: number
@@ -41,7 +42,7 @@ export function itemFootprint(item: Item): Footprint {
 }
 
 /** Half the footprint's diagonal: the circle that surely contains it. */
-export function itemRadius(item: Item): number {
+function itemRadius(item: Item): number {
   const f = itemFootprint(item)
   return Math.hypot(f.length, f.width) / 2
 }
@@ -95,7 +96,7 @@ export function resolveRoom(plan: FloorPlan, ref: string | undefined, ctx: OpCon
 function pickOfType(rooms: Room[], word: string): Room {
   const bySize = [...rooms].sort((p, q) => area(q.polygon) - area(p.polygon))
   const n = /(\d+)/.exec(word)
-  if (n) return rooms[Math.min(rooms.length, Math.max(1, Number(n[1]))) - 1]!
+  if (n) return rooms[clamp(Number(n[1]), 1, rooms.length) - 1]!
   if (/\b(master|primary|main|big|large|biggest|largest)\b/.test(word)) {
     return rooms.find(r => /primary|master|main/.test(`${r.id} ${r.name.toLowerCase()}`)) ?? bySize[0]!
   }
@@ -103,6 +104,11 @@ function pickOfType(rooms: Room[], word: string): Room {
     return rooms.find(r => /guest|spare|kid|child/.test(`${r.id} ${r.name.toLowerCase()}`)) ?? bySize[bySize.length - 1]!
   }
   return bySize[0]!
+}
+
+/** A room as it reads mid-sentence in a note: "the living room", "the bedroom 2". */
+export function roomPhrase(room: Pick<Room, 'name'>): string {
+  return room.name.toLowerCase()
 }
 
 /** "Here": where the player stands, then where they look, then the largest room. */
@@ -114,7 +120,7 @@ export function hereRoom(plan: FloorPlan, ctx: OpContext): Room {
 // ---------- items ----------
 
 /** What "that" means: the item the gaze ray hit, else the smallest item whose footprint holds the gaze point. */
-export function gazeItem(state: HomeState, ctx: OpContext): Item | undefined {
+function gazeItem(state: HomeState, ctx: OpContext): Item | undefined {
   if (ctx.gaze.itemId) {
     const hit = state.items.find(i => i.id === ctx.gaze.itemId)
     if (hit) return hit
@@ -133,7 +139,7 @@ export function gazeItem(state: HomeState, ctx: OpContext): Item | undefined {
   return best
 }
 
-export function lastBatch(state: HomeState): Item[] {
+function lastBatch(state: HomeState): Item[] {
   return state.lastGroup ? state.items.filter(i => i.group === state.lastGroup) : []
 }
 

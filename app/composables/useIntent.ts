@@ -2,16 +2,17 @@
  * The op brain on the client: a sentence plus the gaze snapshot taken when the player STARTED typing or
  * speaking (the deictic rule: "there" is where you were looking when you said it) → /api/intent → the
  * same `useHome().run` path the HUD controls use. `build(request, ctx, source)` is the one entry point;
- * the text bar and the browser mic both call it. Mirrors conjure's useIntent.
+ * the text bar and the browser mic both call it.
  */
 import { shallowRef } from 'vue'
+import { INTENT_MODEL, INTENT_MODELS } from '#shared/models'
+import type { IntentModel } from '#shared/models'
 import { trimScene } from '#shared/home/context'
 import { honestSay } from '#shared/home/state'
 import type { DroppedOp, Op } from '#shared/home/ops'
 import type { BatchResult, OpContext } from '#shared/home/types'
 
 export type IntentPhase = 'idle' | 'listening' | 'thinking' | 'building'
-export type IntentModel = 'haiku' | 'sonnet'
 
 export interface IntentOutcome {
   ok: boolean
@@ -41,7 +42,7 @@ const phase = shallowRef<IntentPhase>('idle')
 const inflight = shallowRef(0)
 const interim = shallowRef('')
 const error = shallowRef('')
-const model = shallowRef<IntentModel>('haiku')
+const model = shallowRef<IntentModel>(INTENT_MODEL)
 const micSupported = shallowRef(false)
 const micOn = shallowRef(false)
 /** The sentences in flight, so the HUD can show what's being built while the pill says thinking. */
@@ -58,7 +59,7 @@ function loadPrefs() {
   loaded = true
   try {
     const m = localStorage.getItem(MODEL_KEY)
-    if (m === 'haiku' || m === 'sonnet') model.value = m
+    if ((INTENT_MODELS as readonly string[]).includes(m ?? '')) model.value = m as IntentModel
     sent.value = Number(localStorage.getItem('hearth.sent') ?? 0) || 0
   } catch {
     // storage blocked: defaults
@@ -268,7 +269,7 @@ async function build(request: string, ctx: OpContext, source: 'text' | 'voice' =
   let end: Extract<IntentEvent, { t: 'done' }> | undefined
   let netError: string | undefined
   try {
-    const res = await fetch(`/api/intent${model.value === 'haiku' ? '' : `?model=${model.value}`}`, {
+    const res = await fetch(`/api/intent${model.value === INTENT_MODEL ? '' : `?model=${model.value}`}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text, state: trimScene(home.state.value), ctx })

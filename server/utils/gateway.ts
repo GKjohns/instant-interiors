@@ -1,5 +1,5 @@
 /**
- * Streamed JSON-in-text op calls through the Vercel AI Gateway (Loop 1). No structured output: Anthropic
+ * Streamed JSON-in-text op calls through the Vercel AI Gateway. No structured output: Anthropic
  * refuses the op schema (too many optionals) and the gateway then falls back to Bedrock tool mode, which
  * adds ~2k prompt tokens and delivers everything in one burst at the end. Instead the model writes plain
  * JSON text, pinned to Anthropic with `only` (`order` alone loses to the gateway's session affinity), and

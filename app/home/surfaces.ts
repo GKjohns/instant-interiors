@@ -5,14 +5,16 @@
  * cached so a re-sync of an unchanged room costs nothing.
  */
 import * as THREE from 'three'
+import { clamp, rng } from '../../shared/math.ts'
 import type { Pattern, Surface, SurfacePart } from '../../shared/plan/schema.ts'
+import { safeColor } from './color.ts'
 
 const TILE: Record<SurfacePart, number> = { walls: 2, floor: 1, ceiling: 2 }
 const ROUGH: Record<Pattern, number> = { plain: 0.85, stripes: 0.85, floral: 0.9, damask: 0.8, tile: 0.35, checker: 0.4, plank: 0.6, herringbone: 0.55, carpet: 1, concrete: 0.9, brick: 0.95, subway: 0.25, terrazzo: 0.3 }
 const NOISY: Pattern[] = ['plain', 'carpet', 'concrete']
 
 /** How many times the tile repeats across a surface of `size` metres. */
-export function repeatFor(part: SurfacePart, size: [number, number]): [number, number] {
+function repeatFor(part: SurfacePart, size: [number, number]): [number, number] {
   const t = TILE[part]
   return [Math.max(0.05, size[0] / t), Math.max(0.05, size[1] / t)]
 }
@@ -20,7 +22,7 @@ export function repeatFor(part: SurfacePart, size: [number, number]): [number, n
 const canvases = new Map<string, HTMLCanvasElement>()
 const materials = new Map<string, THREE.MeshStandardMaterial>()
 
-export function surfaceTexture(surface: Surface, part: SurfacePart, repeat: [number, number]): THREE.CanvasTexture {
+function surfaceTexture(surface: Surface, part: SurfacePart, repeat: [number, number]): THREE.CanvasTexture {
   const key = `${part}|${surface.pattern}|${surface.color}|${surface.accent ?? ''}`
   let c = canvases.get(key)
   if (!c) {
@@ -51,24 +53,12 @@ export function surfaceMaterial(surface: Surface, part: SurfacePart, size: [numb
 
 // ---------- colour helpers ----------
 
-function rgb(hex: string): [number, number, number] {
-  const c = new THREE.Color()
-  c.setRGB(-1, -1, -1)
-  try {
-    c.set(hex)
-  } catch {
-    c.setRGB(-1, -1, -1)
-  }
-  if (c.r < 0) c.set('#cccccc')
-  return [c.r * 255, c.g * 255, c.b * 255]
-}
-
 /** Lighten (amt > 0) or darken (amt < 0) in HSL, as a CSS string. */
 function shade(hex: string, amt: number, alpha = 1): string {
-  const c = new THREE.Color(...rgb(hex).map(v => v / 255) as [number, number, number])
+  const c = safeColor(hex, '#cccccc')
   const hsl = { h: 0, s: 0, l: 0 }
   c.getHSL(hsl)
-  c.setHSL(hsl.h, hsl.s, Math.min(1, Math.max(0, hsl.l + amt)))
+  c.setHSL(hsl.h, hsl.s, clamp(hsl.l + amt, 0, 1))
   return `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},${alpha})`
 }
 
@@ -77,17 +67,6 @@ function hash(i: number, j: number, k = 0): number {
   let h = Math.imul(i | 0, 374761393) ^ Math.imul(j | 0, 668265263) ^ Math.imul(k | 0, 2147483647 >>> 3)
   h = Math.imul(h ^ (h >>> 13), 1274126177)
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296
-}
-
-function rng(seed: number): () => number {
-  let a = seed >>> 0
-  return () => {
-    a = (a + 0x6D2B79F5) >>> 0
-    let t = a
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
 }
 
 // ---------- the drawings ----------

@@ -7,6 +7,7 @@
  * (a vision model) is allowed to return; `normalizePlan` turns it into a strict plan or explains why not.
  */
 import { z } from 'zod'
+import { clamp } from '../math.ts'
 import { area, cleanPolygon, closestOnSegment, signedArea, snapPolygon } from './poly.ts'
 import type { Vec2 } from './poly.ts'
 
@@ -24,7 +25,7 @@ export const SURFACE_PARTS = ['walls', 'floor', 'ceiling'] as const
 export type SurfacePart = typeof SURFACE_PARTS[number]
 
 const num = (min: number, max: number) => z.preprocess(
-  v => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : v),
+  v => (typeof v === 'number' && Number.isFinite(v) ? clamp(v, min, max) : v),
   z.number()
 )
 const vec2 = z.array(z.number()).length(2).transform(v => [v[0]!, v[1]!] as Vec2)
@@ -161,7 +162,7 @@ const WELD_OVERLAP = 0.6
  * WELD_OVERLAP, move the smaller room's edge onto the bigger one's line, so the two share one wall. Only
  * gaps (never overlaps), only parallel edges, the bigger room never moves. Returns how many edges moved.
  */
-export function weldGaps(rooms: Room[]): number {
+function weldGaps(rooms: Room[]): number {
   let n = 0
   const order = rooms.map((r, i) => ({ r, i, a: area(r.polygon) })).sort((p, q) => p.a - q.a || p.i - q.i)
   for (const small of order) {
@@ -299,7 +300,7 @@ export function normalizePlan(loose: unknown, source: FloorPlan['source'] = { ki
       b = touching[1]
     }
     // Widths share the plan's units, so they convert with the coordinates.
-    const width = Math.min(6, Math.max(0.4, o.width !== undefined ? o.width * k : (kind === 'window' ? 1.2 : 0.9)))
+    const width = clamp(o.width !== undefined ? o.width * k : (kind === 'window' ? 1.2 : 0.9), 0.4, 6)
     openings.push({
       id: `${kind}_${oi++}`,
       kind,
@@ -313,11 +314,11 @@ export function normalizePlan(loose: unknown, source: FloorPlan['source'] = { ki
   const plan: FloorPlan = {
     id: normalizeId(lp.name ?? 'plan'),
     name: (lp.name ?? 'Floor plan').trim().slice(0, 60),
-    ceiling: Math.min(4.5, Math.max(2.2, (lp.ceiling ?? 2.7) * (lp.units === 'ft' ? FT : 1))),
+    ceiling: clamp((lp.ceiling ?? 2.7) * (lp.units === 'ft' ? FT : 1), 2.2, 4.5),
     north: ((lp.north ?? 0) % 360 + 360) % 360,
     rooms,
     openings,
-    source: { ...source, notes: [...(source?.notes ?? []), ...notes], ...(lp.confidence !== undefined ? { confidence: Math.min(1, Math.max(0, lp.confidence)) } : {}) }
+    source: { ...source, notes: [...(source?.notes ?? []), ...notes], ...(lp.confidence !== undefined ? { confidence: clamp(lp.confidence, 0, 1) } : {}) }
   }
   const strict = FloorPlanSchema.safeParse(plan)
   if (!strict.success) return { ok: false, reason: strict.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') }

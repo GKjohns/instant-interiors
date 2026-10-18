@@ -10,6 +10,7 @@
 import * as THREE from 'three'
 import type { KindDescriptor } from '../../../shared/home/kinds.ts'
 import type { Material, Props } from '../../../shared/home/ops.ts'
+import { safeColor } from '../color.ts'
 import { bathtub, shower, toilet, towel_rack, vanity } from './bath.ts'
 import { bed, bunk_bed, crib, king_bed, single_bed } from './beds.ts'
 import { books, clock, curtains, mirror, piano, picture, plant, rug, runner, shelf, tree, vase } from './decor.ts'
@@ -20,8 +21,6 @@ import { bicycle, box_, car, exercise_bike, planter } from './misc.ts'
 import { armchair, bar_stool, bench, dining_chair, loveseat, office_chair, ottoman, outdoor_chair, sectional, sofa, stool } from './seating.ts'
 import { bookshelf, cabinet, coat_rack, dresser, shoe_rack, tv_stand, wardrobe } from './storage.ts'
 import { coffee_table, console_table, desk, dining_table, nightstand, round_table, side_table, vanity_table } from './tables.ts'
-
-export type { Build, Dims }
 
 export const BUILDERS: Record<string, Build> = {
   sofa, loveseat, sectional, armchair, ottoman, bench, dining_chair, bar_stool, office_chair, stool,
@@ -85,7 +84,7 @@ export function recolor(root: THREE.Object3D, props: Props): void {
   })
 }
 
-export function applyMaterial(root: THREE.Object3D, material: Material): void {
+function applyMaterial(root: THREE.Object3D, material: Material): void {
   root.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh || m.userData.slot !== 'primary') return
@@ -125,20 +124,4 @@ function localTo(root: THREE.Object3D, o: THREE.Object3D): THREE.Vector3 {
     p.applyMatrix4(n.matrix)
   }
   return p
-}
-
-/** three warns and leaves the colour untouched on a bad string, so start from an impossible sentinel. */
-export function safeColor(hex: string | undefined, fallback: string): THREE.Color {
-  const c = new THREE.Color()
-  if (hex) {
-    c.setRGB(-1, -1, -1)
-    const spec = /^[0-9a-f]{6}$/i.test(hex) ? `#${hex}` : hex
-    try {
-      c.set(spec)
-    } catch {
-      c.setRGB(-1, -1, -1)
-    }
-    if (c.r >= 0) return c
-  }
-  return c.set(fallback)
 }

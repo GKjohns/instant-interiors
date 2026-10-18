@@ -1,7 +1,7 @@
 /**
- * Incremental op scanner (Loop 1): feed it streamed model text, get back each element of the FIRST JSON
- * array the moment its object closes. Works for the intent envelope (`{"ops":[{…},{…}]}`) and the
- * Director's bare array (`[{…},{…}]`), ignores prose or code fences around them, and is string/escape
+ * Incremental op scanner: feed it streamed model text, get back each element of the FIRST JSON array the
+ * moment its object closes. Works for the intent envelope (`{"ops":[{…},{…}]}`) and a bare array
+ * (`[{…},{…}]`), ignores prose or code fences around them, and is string/escape
  * aware so a `}` inside a `say` text never closes an op early. Plain module (the bench imports it).
  */
 export function opScanner() {

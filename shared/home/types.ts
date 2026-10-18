@@ -7,8 +7,6 @@ import type { FloorPlan } from '../plan/schema.ts'
 import type { Vec2 } from '../plan/poly.ts'
 import type { DroppedOp, Op, Props, TimeOfDay } from './ops.ts'
 
-export type { Vec2 }
-
 export interface Item {
   /** `${kind}#${n}`. */
   id: string

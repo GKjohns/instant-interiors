@@ -1,5 +1,5 @@
 /**
- * Small parts the builders share: a leg set, a cushion, a slab, a frame, drawer fronts, a shade, a bulb.
+ * Small parts the builders share: a leg set, a cushion, a frame, drawer fronts, a shade, a bulb.
  * Each returns tagged meshes so a builder stays a short list of parts rather than geometry arithmetic.
  */
 import * as THREE from 'three'
@@ -28,11 +28,6 @@ export function cyl(rTop: number, rBot: number, h: number, material: THREE.Mater
 export function cushion(w: number, h: number, d: number, material: THREE.Material, slot: Slot | null, x = 0, y = 0, z = 0, radius = 0.05): THREE.Mesh {
   const r = Math.min(radius, w / 2.2, h / 2.2, d / 2.2)
   return mesh(new RoundedBoxGeometry(w, h, d, 2, r), material, slot, x, y, z)
-}
-
-/** A horizontal slab (table top, shelf) with its top face at `top`. */
-export function slab(length: number, width: number, thick: number, material: THREE.Material, slot: Slot | null, top: number, x = 0, z = 0): THREE.Mesh {
-  return box(length, thick, width, material, slot, x, top - thick / 2, z)
 }
 
 /** Four tapered legs at the corners, inset from the footprint, standing on the floor. */

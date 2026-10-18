@@ -1,5 +1,6 @@
 // Seating. Fronts face +z; the back of a sofa sits on local z = -width/2; the floor is y = 0.
 import * as THREE from 'three'
+import { clamp } from '../../../shared/math.ts'
 import { group, mesh } from './helpers.ts'
 import type { Build, Dims } from './helpers.ts'
 import { box, cushion, cyl, fabric, legs, metal, wood } from './parts.ts'
@@ -26,7 +27,7 @@ function couch({ length, width, height }: Dims, color: string, trim: string, arm
   return g
 }
 
-export const sofa: Build = d => couch(d, '#6b7b8c', '#3b3129', 0.18, Math.min(5, Math.max(1, Math.round(d.length / 0.75))))
+export const sofa: Build = d => couch(d, '#6b7b8c', '#3b3129', 0.18, clamp(Math.round(d.length / 0.75), 1, 5))
 export const loveseat: Build = d => couch(d, '#8a7f74', '#3b3129', 0.18, 2)
 export const armchair: Build = d => couch(d, '#a0623d', '#3b3129', 0.17, 1)
 

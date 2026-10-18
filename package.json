@@ -13,8 +13,12 @@
     "typecheck": "nuxt typecheck",
     "test": "node --test tests/*.test.ts",
     "shoot": "node scripts/shoot.mjs",
+    "qa": "node scripts/qa.mjs",
+    "check:kit": "node scripts/kit-check.mjs",
+    "check:render": "node scripts/render-check.mjs",
     "draw:plans": "node scripts/draw-plan.mjs",
-    "bench:extract": "node --env-file=.env scripts/bench-extract.mjs"
+    "bench:extract": "node --env-file=.env scripts/bench-extract.mjs",
+    "bench:intent": "node --env-file=.env bench/intent.ts"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",

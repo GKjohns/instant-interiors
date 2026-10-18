@@ -125,7 +125,6 @@ export const CATALOG: KindDescriptor[] = [
 ]
 
 export const KIT: Record<string, KindDescriptor> = Object.fromEntries(CATALOG.map(k => [k.kind, k]))
-export const KIND_NAMES = CATALOG.map(k => k.kind)
 
 /** Everyday words → catalog kinds. Checked after normalizeKind, so keys are snake_case. */
 export const ALIASES: Record<string, string> = {
@@ -176,13 +175,9 @@ export function kindOf(word: string): KindDescriptor | null {
   return null
 }
 
-export function isKitKind(kind: string): boolean {
-  return kindOf(kind) !== null
-}
-
 // ---------- furnish defaults ----------
 
-export interface FurnishEntry {
+interface FurnishEntry {
   kind: string
   count?: number
   arrange?: Arrangement

@@ -1,18 +1,9 @@
 /**
- * Model aliases and gateway pricing for cost reports. Plain module with no Nitro globals, so scripts import it too.
+ * Alias → gateway id, and gateway pricing for cost reports. Plain module with no Nitro globals, so scripts
+ * import it too. The aliases themselves live in shared/models.ts.
  */
-export const MODELS = {
-  haiku: 'anthropic/claude-haiku-5.5',
-  sonnet: 'anthropic/claude-sonnet-5.5',
-  opus: 'anthropic/claude-opus-5.5'
-} as const
-
-export type ModelAlias = keyof typeof MODELS
-
-/** The intent model (sentence → ops): Haiku unless asked otherwise. */
-export const INTENT_MODEL: ModelAlias = 'haiku'
-/** The plan reader (floor-plan image → FloorPlan): needs vision and care, so Sonnet. */
-export const PLAN_MODEL: ModelAlias = 'sonnet'
+import { INTENT_MODEL, MODELS } from '../../shared/models.ts'
+import type { ModelAlias } from '../../shared/models.ts'
 
 export function resolveModel(name: string | undefined, fallback: ModelAlias = INTENT_MODEL): { alias: string, id: string } {
   if (name && name in MODELS) return { alias: name, id: MODELS[name as ModelAlias] }

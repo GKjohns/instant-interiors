@@ -7,10 +7,21 @@
  */
 export type Vec2 = [number, number]
 
+export type Compass = 'north' | 'south' | 'east' | 'west'
+
 export const EPS = 1e-6
 
 export function dist(a: Vec2, b: Vec2): number {
   return Math.hypot(a[0] - b[0], a[1] - b[1])
+}
+
+/** `p + d1·k1 + d2·k2`: a point stepped along one or two directions. */
+export function add(p: Vec2, d1: Vec2, k1: number, d2: Vec2 = [0, 0], k2 = 0): Vec2 {
+  return [p[0] + d1[0] * k1 + d2[0] * k2, p[1] + d1[1] * k1 + d2[1] * k2]
+}
+
+export function dot(a: Vec2, b: Vec2): number {
+  return a[0] * b[0] + a[1] * b[1]
 }
 
 /** Signed area (positive = counter-clockwise in a y-up frame; our z points down, so positive = clockwise on the drawing). */
@@ -131,14 +142,14 @@ export function snapPolygon(poly: Vec2[], step = 0.05): Vec2[] {
 }
 
 /** Compass direction of an outward normal in the plan frame: -z is north (top of the drawing). */
-export function compassOf(normal: Vec2): 'north' | 'south' | 'east' | 'west' {
+export function compassOf(normal: Vec2): Compass {
   const [x, z] = normal
   if (Math.abs(x) > Math.abs(z)) return x > 0 ? 'east' : 'west'
   return z > 0 ? 'south' : 'north'
 }
 
 /** Unit vector of a compass direction in the plan frame. */
-export function dirOf(c: 'north' | 'south' | 'east' | 'west'): Vec2 {
+export function dirOf(c: Compass): Vec2 {
   return c === 'north' ? [0, -1] : c === 'south' ? [0, 1] : c === 'east' ? [1, 0] : [-1, 0]
 }
 

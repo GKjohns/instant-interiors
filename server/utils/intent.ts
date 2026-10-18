@@ -2,7 +2,7 @@
  * The op brain: one sentence + the trimmed scene + the gaze snapshot → strict home ops. The digest (op
  * language, catalog, rules, worked examples) is identical on every call and cached by Anthropic; only
  * the context block and the sentence change. Plain module (explicit imports, no Nitro globals) so
- * `bench/intent.ts` runs it directly. Mirrors conjure's server/utils/intent.ts.
+ * `bench/intent.ts` runs it directly.
  */
 import { buildContext } from '../../shared/home/context.ts'
 import type { Scene } from '../../shared/home/context.ts'

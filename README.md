@@ -18,6 +18,7 @@ npm run draw:plans     # draw the built-in sample plans to public/samples/*.png
 npm run bench:extract  # read every public/samples image through the plan reader and score it
 node --env-file=.env bench/intent.ts   # ~35 sentences × 2 homes through Haiku: pass rate, latency, cost
 node scripts/shoot.mjs --port 3096      # Playwright tour with real sentences, screenshots into internal_docs
+npm run qa -- --port 3096               # the full QA pass against a running dev server (--only walk,light,… to narrow)
 ```
 
 `.env` needs `AI_GATEWAY_API_KEY` (Vercel AI Gateway). Two model calls exist: Haiku 5.5 for sentences
@@ -44,7 +45,7 @@ localStorage; export and import JSON from the ⋯ menu (loading replays the op l
   goto | undo | reset | say`. Models never do coordinate math: a place is a Spot ("against the north wall
   of the living room", "beside the sofa", "where I'm looking") and a selector names things by kind, room,
   gaze or "what you just placed". `parseOps` validates each op strictly and drops the bad ones alone.
-- **The kernel** (`shared/home/state.ts`, `layout.ts`, `select.ts`, `plan/geometry.ts`): pure TypeScript,
+- **The kernel** (`shared/home/state.ts`, `layout/`, `select.ts`, `plan/geometry/`): pure TypeScript,
   no three.js. Resolves every Spot into metres deterministically (seeded by the sentence), keeps things
   inside rooms, off door swings and away from each other, and logs one batch per sentence. The log is the
   truth: undo, save and load replay it over the plan.
@@ -61,14 +62,16 @@ localStorage; export and import JSON from the ⋯ menu (loading replays the op l
 
 ```
 app/components/HomeScene.client.vue   the canvas + HUD host; window.__hearth for scripts
-app/components/hud/                   bar, caption, room chip, plan panel, light popover, history, whisper
+app/components/hud/                   bar, caption, room chip, plan panel, top-right (light popover, history, ⋯ menu), whisper
 app/composables/{useHome,useIntent,usePlan}.ts
-app/home/{renderer,shell,lights,look,surfaces}.ts, app/home/kit/
-shared/plan/{poly,schema,geometry,samples}.ts
-shared/home/{ops,types,kinds,select,layout,state,context}.ts
+app/home/{renderer,shell,lights,look,surfaces,color}.ts, app/home/kit/
+app/pages/dev/renderer.vue            dev-only renderer harness for scripts/render-check.mjs
+shared/plan/{poly,schema,samples}.ts, shared/plan/geometry/{walls,rooms,entry}.ts
+shared/home/{ops,types,kinds,select,state,context}.ts, shared/home/layout/{spots,arrange,fit,facing,site,resolve}.ts
+shared/{math,models}.ts               seeded rng / rounding / clamp; the model aliases (client and server)
 server/api/intent.post.ts, server/api/plan/extract.post.ts
 server/utils/{gateway,opStream,aiModels,intent,planExtract}.ts
-scripts/   draw-plan, bench-extract, kit-check, render-check, shoot, qa
+scripts/   draw-plan, bench-extract, kit-check, render-check, shoot, qa; lib/ (dev server, browser, shots, tables)
 tests/     node --test; fixtures/ holds a saved real-plan read
 internal_docs/20261017_hearth_v0/   brief, competitive research, benches, screenshots
 public/samples/                     floor plan images and their sources

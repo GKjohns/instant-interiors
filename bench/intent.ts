@@ -3,8 +3,8 @@
  *   node --env-file=.env bench/intent.ts                       # haiku
  *   node --env-file=.env bench/intent.ts sonnet --only sofa    # one model, cases whose name contains "sofa"
  *   node --env-file=.env bench/intent.ts --repeat 2 --md internal_docs/20261017_hearth_v0/intent_bench.md
- * Scenes are hand-built HomeStates over the sample plan (the kernel is another sprint, so checks are on
- * the strict ops: the expected op names and their key fields). Prints pass rate, first-op and done
+ * Scenes are hand-built HomeStates over the sample plan, and checks are on the strict ops (the expected op
+ * names and their key fields), so the bench measures the model, not placement. Prints pass rate, first-op and done
  * latency, cost and which provider served it; `--md` also writes the results table.
  */
 import { writeFileSync } from 'node:fs'

@@ -16,7 +16,7 @@ import type { FloorPlan } from '../../shared/plan/schema.ts'
 import { KIT } from '../../shared/home/kinds.ts'
 import type { KindDescriptor } from '../../shared/home/kinds.ts'
 import { footprintOf } from '../../shared/home/select.ts'
-import type { Effects, HomeState, Item } from '../../shared/home/types.ts'
+import type { Effects, HomeState, Item, OpContext } from '../../shared/home/types.ts'
 import { applyLit, buildItem, recolor } from './kit/index.ts'
 import { applyLight, assignLamps, createRig } from './lights.ts'
 import type { LampSource, Rig } from './lights.ts'
@@ -25,11 +25,8 @@ import { buildShell, shellParts, updateSurfaces } from './shell.ts'
 import type { ShellParts } from './shell.ts'
 
 export type Mode = 'walk' | 'plan'
-export interface Gaze {
-  point: Vec2
-  itemId?: string
-  room?: string
-}
+/** What the crosshair is on: the same shape a sentence's `OpContext.gaze` freezes. */
+export type Gaze = OpContext['gaze']
 
 const EYE = 1.6
 const RADIUS = 0.3

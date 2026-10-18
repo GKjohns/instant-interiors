@@ -4,44 +4,32 @@
 // The renderer caps a frame's step at 50 ms, so under ~20 fps (software GL) you walk slower; the walks start
 // a metre from the doorway so they cross it either way.
 // Re-runnable; screenshots land in internal_docs/20261017_hearth_v0/shots/qa_NN_<slug>.png.
-//   node scripts/qa.mjs --port 3096 [--only walk,sentences,restore,files,extract,planview,light,mobile,perf]
+//   node scripts/qa.mjs --port 3096 [--only walk,sentences,restore,files,extract,planview,light,mobile,perf] [--swiftshader]
 // Needs a Hearth dev server already running on --port (it never boots or kills one: 3092 may be another app).
-import { chromium } from 'playwright'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { walls, doorsOf, entry, roomAt } from '../shared/plan/geometry.ts'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { doorsOf, entry, roomAt, walls } from '../shared/plan/geometry.ts'
 import { area, pointInPolygon } from '../shared/plan/poly.ts'
 import { itemCorners } from '../shared/home/select.ts'
+import { ROOT, SHOTS_DIR, collectErrors, devServer, flags, freshStart, launch, sceneReady, screenshot, shotFile } from './lib/harness.mjs'
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const args = process.argv.slice(2)
-const opt = (k, d) => (args.includes(k) ? args[args.indexOf(k) + 1] : d)
-const port = Number(opt('--port', 3096))
-const url = `http://localhost:${port}/`
+const { opt, has } = flags()
+const { url } = await devServer({ port: Number(opt('--port', 3096)), boot: false })
 const only = opt('--only', '') ? new Set(opt('--only', '').split(',')) : null
 const want = s => !only || only.has(s)
-const outDir = resolve(root, 'internal_docs/20261017_hearth_v0/shots')
-mkdirSync(outDir, { recursive: true })
+const outDir = SHOTS_DIR
 const report = { walks: [], sentences: [], checks: [], fps: [], freezes: [], extract: [] }
 const check = (name, ok, detail = '') => {
   report.checks.push({ name, ok, detail })
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` · ${detail}` : ''}`)
 }
 
-const res = await fetch(new URL('/api/plan/extract', url), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).catch(() => null)
-if (!res || !/image is required/.test(await res.text())) throw new Error(`no Hearth dev server on :${port}`)
-
-// Metal by default (the Mac's GPU, so fps means something); --swiftshader for the software path CI would get.
-const gl = args.includes('--swiftshader') ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : ['--use-angle=metal']
-const browser = await chromium.launch({ headless: true, args: ['--use-gl=angle', ...gl, '--ignore-gpu-blocklist', '--enable-webgl'] })
+const browser = await launch(has('--swiftshader') ? 'swiftshader' : 'metal')
 const W = 1280
 const H = 800
 const ctxB = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, acceptDownloads: true })
 const page = await ctxB.newPage()
-const errors = []
-page.on('pageerror', e => errors.push(e.message))
-page.on('console', m => m.type() === 'error' && errors.push(m.text().slice(0, 200)))
+const errors = collectErrors(page)
 
 const wait = ms => page.waitForTimeout(ms)
 let n = 0
@@ -51,16 +39,9 @@ const section = (base) => {
 }
 const shot = async (slug, p = page) => {
   await p.evaluate(() => document.activeElement?.blur())
-  const file = resolve(outDir, `qa_${String(++n).padStart(2, '0')}_${slug}.png`)
-  await p.screenshot({ path: file })
-  console.log('  shot', file.replace(root + '/', ''))
-  return file
+  return screenshot(p, shotFile(outDir, 'qa', ++n, slug))
 }
-const ready = async (p = page) => {
-  await p.waitForFunction(() => window.__sceneReady === true, null, { timeout: 90000 })
-  await p.evaluate(() => document.querySelectorAll('[id^="nuxt-devtools"], nuxt-devtools-anchor').forEach(e => e.remove()))
-  await p.waitForTimeout(2000)
-}
+const ready = (p = page) => sceneReady(p)
 const H$ = (fn, arg) => page.evaluate(fn, arg)
 const state = () => H$(() => {
   const s = window.__hearth.state()
@@ -268,10 +249,7 @@ const measure = async (label, pose = { pos: [4.5, 3.8], yaw: 0.8 }) => {
 
 // ---------- first load ----------
 section(1)
-await page.goto(url, { waitUntil: 'networkidle' })
-await page.evaluate(() => localStorage.clear())
-await page.reload({ waitUntil: 'networkidle' })
-await ready()
+await freshStart(page, url)
 await page.mouse.move(W / 2, H / 2 - 150)
 const first = await state()
 const spawn = await player()
@@ -417,7 +395,7 @@ if (want('extract')) {
   await page.click('[data-plan-button]')
   await wait(600)
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-drop-zone]')])
-  await chooser.setFiles(resolve(root, 'public/samples/desktop_2br.png'))
+  await chooser.setFiles(resolve(ROOT, 'public/samples/desktop_2br.png'))
   await wait(500)
   await page.fill('[data-plan-hint] input, input[data-plan-hint]', '2 bedroom apartment, dimensions in feet')
   const t0 = Date.now()
@@ -458,7 +436,7 @@ if (want('extract')) {
     await freeze('extracted: furnish all mid-century', () => window.__hearth.run([{ op: 'furnish', room: 'all', style: 'mid-century' }], 'qa perf'))
   }
 
-  const tyne = readFileSync(resolve(root, 'public/samples/wiki_2br_tyneside.png'))
+  const tyne = readFileSync(resolve(ROOT, 'public/samples/wiki_2br_tyneside.png'))
   const t = await H$(([d, h]) => window.__hearth.extract(d, h), [`data:image/png;base64,${tyne.toString('base64')}`, ''])
   console.log('extract tyneside', t.ok, t.ms, t.reason ?? '')
   if (t.ok) {

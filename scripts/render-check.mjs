@@ -1,69 +1,18 @@
 // Renders the sample apartment through app/pages/dev/renderer.vue and screenshots the views that matter:
 // living room by morning, the kitchen through its opening, the primary bedroom at night with lamps, the
 // plan (dollhouse) view, and the living room after a wallpaper change. Reports console errors (WebGL,
-// three) and the frame rate. Reuses a hearth dev server on --port (default 3092) when one is there,
-// otherwise boots `npm run dev` on the next free port.
+// three) and the frame rate. Reuses a Hearth dev server on --port (default 3092) when one is there,
+// otherwise boots one on the next free port.
 //   node scripts/render-check.mjs [--port 3092] [--keep]
-import { spawn } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
-import path from 'node:path'
-import { chromium } from 'playwright'
+import { resolve } from 'node:path'
+import { SHOTS_DIR, devServer, flags, hideDevtools, launch, screenshot } from './lib/harness.mjs'
 
-const args = process.argv.slice(2)
-const argOf = (k, d) => (args.includes(k) ? args[args.indexOf(k) + 1] : d)
-const WANT = Number(argOf('--port', 3092))
-const OUT = path.resolve('internal_docs/20261017_hearth_v0/shots')
+const { opt, has } = flags()
 const SIZE = { width: 1440, height: 900 }
 
-/** Something answers HTTP on the port (a socket probe misses servers bound only to ::1). */
-async function busy(port) {
-  try {
-    await fetch(`http://localhost:${port}/`, { signal: AbortSignal.timeout(3000) })
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function waitFor(url, ms) {
-  const t0 = Date.now()
-  while (Date.now() - t0 < ms) {
-    try {
-      const r = await fetch(url)
-      if (r.ok) return true
-    } catch { /* not up yet */ }
-    await new Promise(r => setTimeout(r, 500))
-  }
-  return false
-}
-
-/** True when the server on `port` is this app: the harness page registers `__hearthRenderer`. */
-async function isHearth(browser, port) {
-  const page = await browser.newPage({ viewport: SIZE })
-  try {
-    await page.goto(`http://localhost:${port}/dev/renderer`, { waitUntil: 'domcontentloaded', timeout: 15000 })
-    await page.waitForFunction(() => !!window.__hearthRenderer, null, { timeout: 20000 })
-    return true
-  } catch {
-    return false
-  } finally {
-    await page.close()
-  }
-}
-
 async function main() {
-  await mkdir(OUT, { recursive: true })
-  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=metal', '--ignore-gpu-blocklist'] })
-  let port = WANT
-  let child = null
-  if (!(await busy(port)) || !(await isHearth(browser, port))) {
-    while (await busy(port)) port++
-    console.log(`starting nuxt dev on :${port}`)
-    child = spawn('npx', ['nuxt', 'dev', '--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'], env: process.env })
-    child.stderr.on('data', d => process.stderr.write(d))
-    if (!(await waitFor(`http://localhost:${port}/dev/renderer`, 120000))) throw new Error('dev server did not come up')
-  } else console.log(`reusing hearth dev server on :${port}`)
-
+  const server = await devServer({ port: Number(opt('--port', 3092)), nextFree: true })
+  const browser = await launch('metal')
   const page = await browser.newPage({ viewport: SIZE, deviceScaleFactor: 1 })
   const problems = []
   page.on('console', (m) => {
@@ -71,20 +20,18 @@ async function main() {
     if (m.type() === 'error' || /WebGL|THREE\./.test(text)) problems.push(`[${m.type()}] ${text.slice(0, 300)}`)
   })
   page.on('pageerror', e => problems.push(`[pageerror] ${e.message}`))
-  await page.goto(`http://localhost:${port}/dev/renderer`, { waitUntil: 'domcontentloaded' })
+  await page.goto(new URL('/dev/renderer', server.url).href, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => !!window.__hearthRenderer, null, { timeout: 60000 })
-  // The devtools pill would sit in every shot.
-  await page.addStyleTag({ content: '#nuxt-devtools-container, .nuxt-devtools-anchor { display: none !important }' })
+  await hideDevtools(page)
   // First frames compile shaders; give the pop-in tweens time to land before measuring anything.
   await page.waitForTimeout(2500)
 
   const shot = async (name, setup, settle = 900) => {
     await page.evaluate(setup)
     await page.waitForTimeout(settle)
-    const file = path.join(OUT, `renderer_${name}.png`)
-    await page.screenshot({ path: file })
+    await screenshot(page, resolve(SHOTS_DIR, `renderer_${name}.png`))
     const g = await page.evaluate(() => ({ gaze: window.__hearthRenderer.gaze(), player: window.__hearthRenderer.player() }))
-    console.log(`${name}: ${file}  gaze=${JSON.stringify(g.gaze)} player=${JSON.stringify(g.player)}`)
+    console.log(`  ${name}: gaze=${JSON.stringify(g.gaze)} player=${JSON.stringify(g.player)}`)
   }
 
   // 1. Living room, morning: from the south-east corner looking across the seating toward the north window.
@@ -178,9 +125,9 @@ async function main() {
 
   const errors = [...new Set(problems)]
   console.log(errors.length ? `console problems (${errors.length}):\n  ${errors.join('\n  ')}` : 'console: clean')
-  if (!args.includes('--keep')) {
+  if (!has('--keep')) {
     await browser.close()
-    child?.kill()
+    server.stop()
   }
   process.exit(errors.some(e => /WebGL|pageerror/.test(e)) ? 1 : 0)
 }

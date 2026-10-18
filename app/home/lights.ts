@@ -13,7 +13,7 @@ import type { TimeOfDay } from '../../shared/home/ops.ts'
 import type { Light } from '../../shared/home/types.ts'
 import type { ShellParts } from './shell.ts'
 
-export const POOL = 12
+const POOL = 12
 
 export interface Rig {
   sun: THREE.DirectionalLight

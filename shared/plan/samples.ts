@@ -52,7 +52,3 @@ export const TWO_BED_APARTMENT: FloorPlan = sample({
 })
 
 export const SAMPLES: FloorPlan[] = [TWO_BED_APARTMENT]
-
-export function sampleById(id: string): FloorPlan | undefined {
-  return SAMPLES.find(p => p.id === id)
-}
