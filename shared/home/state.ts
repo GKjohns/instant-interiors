@@ -4,18 +4,19 @@
  * which is how undo, save and load all work. No three.js here, so tests and the server can use it.
  */
 import { hashSeed, round3 } from '../math.ts'
-import { yawToward } from '../plan/poly.ts'
+import { add, dist, distToPolygonEdge, pointInPolygon, yawToward } from '../plan/poly.ts'
+import type { Vec2 } from '../plan/poly.ts'
 import { FloorPlanSchema, defaultSurfaces } from '../plan/schema.ts'
 import type { FloorPlan, Room, Surface } from '../plan/schema.ts'
 import { doorsOf, entry, longestEdge, planBounds, roomCenter, windowsOf } from '../plan/geometry.ts'
 import { FURNISH, kindOf, styleOf } from './kinds.ts'
 import type { KindDescriptor } from './kinds.ts'
-import { describeSel, poseBefore, resolveSpot } from './layout.ts'
-import type { Placed } from './layout.ts'
+import { describeSel, itemLayer, layerOf, overlapArea, poseBefore, resolveSpot, yawFacing } from './layout.ts'
+import type { Layer, Placed } from './layout.ts'
 import { parseOps } from './ops.ts'
-import type { DroppedOp, Op, Props } from './ops.ts'
-import { footprintOf, kindOfItem, resolveRoom, select } from './select.ts'
-import type { Batch, BatchResult, Effects, HomeState, Item, OpContext } from './types.ts'
+import type { DroppedOp, Op, Props, Spot } from './ops.ts'
+import { boxCorners, footprintOf, itemCorners, itemFootprint, kindOfItem, resolveRoom, select } from './select.ts'
+import type { Batch, BatchResult, Effects, HomeState, Item, ItemAnchor, OpContext, SwapMemo } from './types.ts'
 
 const HOME_VERSION = 1
 
@@ -67,26 +68,31 @@ function step(state: HomeState, op: Op, ctx: OpContext, index: number): StepResu
       const desc = kindOf(op.kind)
       if (!desc) return { state, notes: [`I don't have a ${op.kind.replace(/_/g, ' ')} yet`] }
       const count = op.count ?? 1
+      const swap = swapInto(state, op, desc, ctx, index, group)
+      if (swap) return swap
+      const link = { spot: op.at, ctx }
       const res = resolveSpot(state, op.at, desc, ctx, { index, count, arrange: op.arrange, seed: ctx.seed, existing: state.items, props: op.set })
       if ('fail' in res) {
         // "A big mirror" at 1.5× fits no wall of a door-riddled hall; at its own size it does. Say so, don't refuse.
         if ((op.set?.scale ?? 1) > 1) {
           const set = Object.fromEntries(Object.entries(op.set!).filter(([k]) => k !== 'scale')) as Props
           const again = resolveSpot(state, op.at, desc, ctx, { index, count, arrange: op.arrange, seed: ctx.seed, existing: state.items, props: set })
-          if (!('fail' in again)) return { state: addItems(state, desc, again, set, group), notes: [`place: no room for a bigger ${desc.label}, so it's the usual size${again.note ? `; ${again.note}` : ''}`] }
+          if (!('fail' in again)) return { state: addItems(state, desc, again, set, group, link), notes: [`place: no room for a bigger ${desc.label}, so it's the usual size${again.note ? `; ${again.note}` : ''}`] }
         }
         return { state, notes: [`place: ${res.fail}`] }
       }
       const notes = res.length < count ? [`only room for ${res.length} of ${count} ${desc.label}s`] : []
       if (res.note) notes.unshift(`place: ${res.note}`)
-      return { state: addItems(state, desc, res, op.set, group), notes }
+      return { state: addItems(state, desc, res, op.set, group, link), notes }
     }
 
     case 'move': {
       const targets = select(state, op.target, ctx)
       if (!targets.length) return { state, notes: [`move: nothing matches ${describeSel(op.target)}`] }
       const ids = new Set(targets.map(t => t.id))
-      let existing = state.items.filter(i => !ids.has(i.id))
+      // The movers' company (nightstands, the lamps on them) is about to follow, so it doesn't stand in the way of the new spot.
+      const company = companyOf(state.items, ids)
+      let existing = state.items.filter(i => !ids.has(i.id) && !company.has(i.id))
       const moved = new Map<string, Item>()
       const notes: string[] = []
       let why: string | undefined
@@ -122,14 +128,32 @@ function step(state: HomeState, op: Op, ctx: OpContext, index: number): StepResu
         if (why) notes.splice(0, notes.length, `move: ${why}`)
         else notes.push(`move: the ${kindOfItem(still[0]!)?.label ?? still[0]!.kind} is already there`)
       }
-      return { state: { ...state, items: state.items.map(i => moved.get(i.id) ?? i) }, notes }
+      let s: HomeState = { ...state, items: state.items.map(i => moved.get(i.id) ?? i) }
+      // A piece moved on its own stops following what it stood by, unless this move puts it beside something new.
+      for (const m of moved.values()) {
+        const anchor = anchorFor(s, op.at, ctx, m)
+        const next: Item = { ...m }
+        if (anchor) next.anchor = anchor
+        else delete next.anchor
+        s = replaceItem(s, next)
+      }
+      s = carry(s, targets.filter(t => moved.has(t.id)).map(t => [t, s.items.find(i => i.id === t.id)!]), ctx, index, notes, 'move')
+      return { state: s, notes }
     }
 
     case 'remove': {
       const targets = select(state, op.target, ctx)
       if (!targets.length) return { state, notes: [`remove: nothing matches ${describeSel(op.target)}`] }
       const ids = new Set(targets.map(t => t.id))
-      return { state: { ...state, items: state.items.filter(i => !ids.has(i.id)) }, notes: [] }
+      const s: HomeState = { ...state, items: unhook(state.items.filter(i => !ids.has(i.id))) }
+      // One piece out is the first half of a swap ("a king bed instead"): remember its pose and who stood by it.
+      if (targets.length === 1) {
+        const x = targets[0]!
+        const deps = state.items.filter(i => i.anchor?.id === x.id && !ids.has(i.id)).map(i => ({ id: i.id, anchor: i.anchor! }))
+        const prior = state.swap?.group === group ? state.swap.removed : []
+        s.swap = { group, removed: [...prior, { item: x, deps }] }
+      }
+      return { state: s, notes: [] }
     }
 
     case 'restyle': {
@@ -137,7 +161,12 @@ function step(state: HomeState, op: Op, ctx: OpContext, index: number): StepResu
       if (!targets.length) return { state, notes: [`restyle: nothing matches ${describeSel(op.target)}`] }
       const ids = new Set(targets.map(t => t.id))
       const items = state.items.map(i => (ids.has(i.id) ? { ...i, props: mergeProps(i, op.set, op.relative ?? false) } : i))
-      return { state: { ...state, items }, notes: [] }
+      let s: HomeState = { ...state, items }
+      // A bigger bed pushes its nightstands out and lifts nothing into it: re-pose what stands by anything that changed size.
+      const resized = targets.map(t => [t, items.find(i => i.id === t.id)!] as [Item, Item]).filter(([a, b]) => JSON.stringify(itemFootprint(a)) !== JSON.stringify(itemFootprint(b)))
+      const notes: string[] = []
+      if (resized.length) s = carry(s, resized, ctx, index, notes, 'restyle')
+      return { state: s, notes }
     }
 
     case 'surface': {
@@ -196,7 +225,8 @@ function step(state: HomeState, op: Op, ctx: OpContext, index: number): StepResu
 
 // ---------- items ----------
 
-function addItems(state: HomeState, desc: KindDescriptor, placed: Placed[], set: Props | undefined, group: string): HomeState {
+/** `link` is the spot it was asked for: when that names an anchor ("beside the bed"), each new piece remembers it. */
+function addItems(state: HomeState, desc: KindDescriptor, placed: Placed[], set: Props | undefined, group: string, link?: { spot: Spot | undefined, ctx: OpContext }): HomeState {
   const taken = new Set(state.items.filter(i => i.kind === desc.kind).map(i => i.id))
   const items = placed.map((p) => {
     let n = 1
@@ -205,6 +235,8 @@ function addItems(state: HomeState, desc: KindDescriptor, placed: Placed[], set:
     taken.add(id)
     const item: Item = { id, kind: desc.kind, room: p.room, pos: p.pos, yaw: p.yaw, props: cleanProps(set ?? {}), group, tags: [...desc.tags] }
     if (p.y !== undefined) item.y = p.y
+    const anchor = link && anchorFor(state, link.spot, link.ctx, item)
+    if (anchor) item.anchor = anchor
     return item
   })
   return { ...state, items: [...state.items, ...items], nextId: state.nextId + items.length, lastGroup: group }
@@ -242,6 +274,260 @@ function cleanProps(p: Props): Props {
   return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)) as Props
 }
 
+// ---------- anchors (group moves) ----------
+
+/** Touching footprints are fine; this much shared area (m²) is a real clash. Matches the layout's tolerance. */
+const CLASH = 0.001
+
+function replaceItem(state: HomeState, next: Item): HomeState {
+  return { ...state, items: state.items.map(i => (i.id === next.id ? next : i)) }
+}
+
+/** Anchors whose piece is gone are dropped, so a later piece reusing the id doesn't adopt strangers. */
+function unhook(items: Item[]): Item[] {
+  const ids = new Set(items.map(i => i.id))
+  return items.map((i) => {
+    if (!i.anchor || ids.has(i.anchor.id)) return i
+    const { anchor: _gone, ...rest } = i
+    return rest
+  })
+}
+
+/** Everything anchored to `ids`, directly or through another dependant, that isn't itself in `ids`. */
+function companyOf(items: Item[], ids: Set<string>): Set<string> {
+  const out = new Set<string>()
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const i of items) {
+      if (!i.anchor || ids.has(i.id) || out.has(i.id)) continue
+      if (ids.has(i.anchor.id) || out.has(i.anchor.id)) {
+        out.add(i.id)
+        grew = true
+      }
+    }
+  }
+  return out
+}
+
+function wrapYaw(y: number): number {
+  const w = Math.atan2(Math.sin(y), Math.cos(y))
+  return Object.is(w, -0) ? 0 : w
+}
+
+/** A plan point in the anchor's frame: x along its length (local +x), z toward its front (local +z), as boxCorners lays them out. */
+function toLocal(a: Pick<Item, 'pos' | 'yaw'>, p: Vec2): Vec2 {
+  const dx = p[0] - a.pos[0]
+  const dz = p[1] - a.pos[1]
+  const c = Math.cos(a.yaw)
+  const s = Math.sin(a.yaw)
+  return [round3(dx * c - dz * s), round3(dx * s + dz * c)]
+}
+
+function toWorld(a: Pick<Item, 'pos' | 'yaw'>, o: Vec2): Vec2 {
+  const c = Math.cos(a.yaw)
+  const s = Math.sin(a.yaw)
+  return [round3(a.pos[0] + o[0] * c + o[1] * s), round3(a.pos[1] - o[0] * s + o[1] * c)]
+}
+
+/** One axis of an offset when the anchor changes size: outside its edge keeps the same gap; on top of it scales with it. */
+function stretch(o: number, before: number, after: number): number {
+  if (Math.abs(o) >= before / 2 - 0.02) return o + Math.sign(o) * (after - before) / 2
+  return before > 0 ? o * after / before : o
+}
+
+function makeAnchor(a: Item, item: Item, side: Spot['side']): ItemAnchor {
+  const out: ItemAnchor = { id: a.id, offset: toLocal(a, item.pos), yaw: round3(wrapYaw(item.yaw - a.yaw)) }
+  if (side) out.side = side
+  const desc = kindOfItem(item)
+  const top = (a.y ?? 0) + itemFootprint(a).height
+  if (item.y !== undefined && desc && desc.place !== 'wall_mounted' && desc.place !== 'ceiling' && Math.abs(item.y - top) < 0.05) out.y = round3(item.y - top)
+  return out
+}
+
+/**
+ * The anchor a piece placed at `spot` belongs to: the nearest match of `spot.of` in its room, if it really
+ * landed by it. Not "opposite" (a TV stand across the room is a partner, not a dependant), not when a
+ * fallback put it on another wall, not a big floor piece beside a small one (a sofa "by the lamp" doesn't
+ * follow the lamp), and never in a loop.
+ */
+function anchorFor(state: HomeState, spot: Spot | undefined, ctx: OpContext, item: Item): ItemAnchor | undefined {
+  if (!spot?.of || spot.side === 'opposite') return undefined
+  const pool = select(state, spot.of, ctx).filter(a => a.id !== item.id && a.room === item.room)
+  const a = [...pool].sort((p, q) => dist(p.pos, item.pos) - dist(q.pos, item.pos) || (p.id < q.id ? -1 : 1))[0]
+  if (!a) return undefined
+  const fa = itemFootprint(a)
+  const fi = itemFootprint(item)
+  const reach = Math.hypot(fa.length, fa.width) / 2 + Math.hypot(fi.length, fi.width) / 2 + Math.max(0, spot.dist ?? 0) + 0.5
+  if (dist(a.pos, item.pos) > reach) return undefined
+  if (itemLayer(item) === 'floor' && fi.length * fi.width > 1.5 * fa.length * fa.width) return undefined
+  for (let k: Item | undefined = a, n = 0; k?.anchor && n < 50; n++) {
+    if (k.anchor.id === item.id) return undefined
+    k = state.items.find(i => i.id === k!.anchor!.id)
+  }
+  return makeAnchor(a, item, spot.side)
+}
+
+/** Same clash rules as the layout's fit: rugs never clash, hung and ceiling pieces only with what reaches them, tops only with tops at that height. */
+function clashes(a: { box: Vec2[], layer: Layer, y: number, top: number }, b: { box: Vec2[], layer: Layer, y: number, top: number }): boolean {
+  if (a.layer === 'under' || b.layer === 'under') return false
+  const hit = () => overlapArea(a.box, b.box) > CLASH
+  if (a.layer === 'ceiling' || b.layer === 'ceiling') return a.layer === b.layer && hit()
+  if (a.layer === 'top' || b.layer === 'top') return a.layer === b.layer && Math.abs(a.y - b.y) < 0.1 && hit()
+  if (a.layer === 'mounted' || b.layer === 'mounted') return Math.min(a.top, b.top) - Math.max(a.y, b.y) > 0.02 && hit()
+  return hit()
+}
+
+/** Would a piece stand at exactly this pose: inside its room (tops ride their anchor), off door swings, clear of `others`? */
+function poseFits(state: HomeState, desc: KindDescriptor, props: Props, pose: Placed, others: Item[]): boolean {
+  const room = state.plan.rooms.find(r => r.id === pose.room)
+  if (!room) return false
+  const fp = footprintOf(desc, props)
+  const layer = layerOf(desc, pose.y)
+  const box = boxCorners(pose.pos, pose.yaw, fp.length, fp.width)
+  if (layer !== 'top' && !box.every(k => pointInPolygon(k, room.polygon, 0.03))) return false
+  const y = pose.y ?? 0
+  const me = { box, layer, y, top: y + fp.height }
+  if (layer === 'floor') {
+    for (const d of doorsOf(state.plan, room)) {
+      if (d.kind !== 'door') continue
+      const swing = boxCorners(add(d.at, d.inward, d.width / 2), yawFacing(d.inward), d.width, d.width)
+      if (overlapArea(box, swing) > CLASH) return false
+    }
+  }
+  // A picture or mirror carried along with its bed must not end up hung on the glass.
+  if (layer === 'mounted') {
+    for (const w of windowsOf(state.plan, room)) {
+      const pane = boxCorners(add(w.at, w.inward, 0.2), yawFacing(w.inward), w.width, 0.4)
+      if (overlapArea(box, pane) > 0 && y < w.y1 && me.top > w.y0) return false
+    }
+  }
+  return !others.some((o) => {
+    if (o.room !== room.id) return false
+    const oy = o.y ?? 0
+    return clashes(me, { box: itemCorners(o), layer: itemLayer(o), y: oy, top: oy + itemFootprint(o).height })
+  })
+}
+
+/**
+ * Carry dependants after their anchors moved or changed size: each `[before, after]` pair re-poses the pieces
+ * anchored to it from their stored offsets, then theirs in turn (the lamp on the nightstand by the bed).
+ * Deterministic: dependants go in id order and every fallback is seeded from the sentence.
+ */
+function carry(state: HomeState, pairs: [Item, Item][], ctx: OpContext, index: number, notes: string[], verb: string): HomeState {
+  let s = state
+  const queue = [...pairs]
+  const seen = new Set(pairs.map(p => p[1].id))
+  let k = 0
+  while (queue.length) {
+    const [before, after] = queue.shift()!
+    const deps = s.items.filter(i => i.anchor?.id === after.id && !seen.has(i.id)).sort((p, q) => (p.id < q.id ? -1 : 1))
+    for (const d of deps) {
+      seen.add(d.id)
+      const next = follow(s, d, before, after, ctx, index * 100 + 50 + k++, notes, verb)
+      s = replaceItem(s, next)
+      queue.push([d, next])
+    }
+  }
+  return s
+}
+
+/** One dependant to its anchor's new frame; if that spot is taken, beside the anchor again; failing that, the nearest free floor. */
+function follow(s: HomeState, d: Item, before: Item, after: Item, ctx: OpContext, index: number, notes: string[], verb: string): Item {
+  const a = d.anchor!
+  const desc = kindOfItem(d)
+  if (!desc) return d
+  const fb = itemFootprint(before)
+  const fa = itemFootprint(after)
+  const offset: Vec2 = [round3(stretch(a.offset[0], fb.length, fa.length)), round3(stretch(a.offset[1], fb.width, fa.width))]
+  const pose: Placed = { pos: toWorld(after, offset), yaw: round3(wrapYaw(after.yaw + a.yaw)), room: after.room }
+  if (a.y !== undefined) pose.y = round3((after.y ?? 0) + fa.height + a.y)
+  else if (d.y !== undefined) pose.y = d.y
+  const others = s.items.filter(i => i.id !== d.id)
+  if (poseFits(s, desc, d.props, pose, others)) return { ...withPose(d, pose), anchor: { ...a, offset } }
+
+  const opts = { index, count: 1, seed: ctx.seed, existing: others, props: d.props }
+  const without: HomeState = { ...s, items: others }
+  // The gaze picks which of several matching anchors: this one.
+  const near = resolveSpot(without, { room: after.room, where: 'near', of: { kind: after.kind }, ...(a.side ? { side: a.side } : {}) }, desc, { ...ctx, gaze: { point: after.pos, itemId: after.id, room: after.room } }, opts)
+  if (!('fail' in near) && near[0] && !near.note) {
+    const next = withPose(d, near[0])
+    return { ...next, anchor: makeAnchor(after, next, a.side) }
+  }
+  const floor = resolveSpot(without, { room: after.room, where: 'gaze' }, desc, { ...ctx, gaze: { point: pose.pos, room: after.room } }, opts)
+  const got = !('fail' in floor) ? floor[0] : undefined
+  // Nudged a hand's width off a plant is still beside the bed: keep it anchored and say nothing.
+  if (got && dist(got.pos, pose.pos) <= 0.3 && Math.abs(wrapYaw(got.yaw - pose.yaw)) < 0.1 && got.y === pose.y) {
+    const next = withPose(d, got)
+    return { ...next, anchor: makeAnchor(after, next, a.side) }
+  }
+  notes.push(`${verb}: the ${desc.label} couldn't follow the ${kindOfItem(after)?.label ?? after.kind}`)
+  const { anchor: _a, ...loose } = d
+  return got ? withPose(loose, got) : loose
+}
+
+// ---------- swaps ----------
+
+/** Things that can trade places: both hung, both on the ceiling, or both standing. */
+function mountOf(desc: KindDescriptor): string {
+  return desc.place === 'wall_mounted' || desc.place === 'ceiling' ? desc.place : 'stand'
+}
+
+/**
+ * "A king bed instead": a single place, no spot (or only the removed piece's room), right after the same
+ * sentence removed one piece of another kind, takes that piece's pose. The back edge stays where it was, so
+ * a deeper piece stays against its wall. When it doesn't fit there it goes where it naturally would, with a
+ * note. Same family (bed → king bed, sofa → sectional): the old piece's dependants re-anchor to the new one.
+ */
+function swapInto(state: HomeState, op: Extract<Op, { op: 'place' }>, desc: KindDescriptor, ctx: OpContext, index: number, group: string): StepResult | null {
+  const memo = state.swap
+  if (!memo || memo.group !== group || (op.count ?? 1) !== 1) return null
+  const at = op.at
+  if (at && Object.entries(at).some(([k, v]) => v !== undefined && k !== 'room')) return null
+  const slot = memo.removed.findLastIndex(r => !r.used && r.item.kind !== desc.kind && mountOf(kindOfItem(r.item) ?? desc) === mountOf(desc))
+  const entry = memo.removed[slot]
+  if (!entry) return null
+  const x = entry.item
+  if (at?.room) {
+    const r = resolveRoom(state.plan, at.room, ctx)
+    if (!r || r === 'all' || r.id !== x.room) return null
+  }
+  const used: SwapMemo = { ...memo, removed: memo.removed.map((r, i) => (i === slot ? { ...r, used: true } : r)) }
+  const base: HomeState = { ...state, swap: used }
+  const fx = itemFootprint(x)
+  const fn = footprintOf(desc, op.set)
+  const pose: Placed = { pos: x.pos, yaw: x.yaw, room: x.room }
+  // Backed onto a wall (a bed, a sofa): keep the back edge on it, so a deeper piece grows into the room, not the wall.
+  const f: Vec2 = [Math.sin(x.yaw), Math.cos(x.yaw)]
+  const room = state.plan.rooms.find(r => r.id === x.room)
+  if (room && distToPolygonEdge(add(x.pos, f, -fx.width / 2), room.polygon) < 0.08) pose.pos = [round3(x.pos[0] + f[0] * (fn.width - fx.width) / 2), round3(x.pos[1] + f[1] * (fn.width - fx.width) / 2)]
+  if (desc.place === 'wall_mounted' && x.y !== undefined) pose.y = round3(Math.max(0.05, x.y + (fx.height - fn.height) / 2))
+  else if (desc.place === 'ceiling') pose.y = round3(state.plan.ceiling - fn.height)
+  else if (x.y !== undefined) pose.y = x.y
+
+  const notes: string[] = []
+  // Same family keeps the old piece's company, and that company moves out of the way for a bigger piece, so it doesn't block the spot.
+  const family = kindOfItem(x)?.tags[0] === desc.tags[0]
+  const company = new Set(family ? entry.deps.map(d => d.id) : [])
+  let s: HomeState
+  if (poseFits(base, desc, op.set ?? {}, pose, base.items.filter(i => !company.has(i.id)))) s = addItems(base, desc, [pose], op.set, group)
+  else {
+    const res = resolveSpot(base, op.at, desc, ctx, { index, count: 1, seed: ctx.seed, existing: base.items, props: op.set })
+    if ('fail' in res) return { state: base, notes: [`place: ${res.fail}`] }
+    notes.push(`place: the ${desc.label} didn't fit where the ${kindOfItem(x)?.label ?? x.kind} was${res.note ? `; ${res.note}` : ''}`)
+    s = addItems(base, desc, res, op.set, group, { spot: op.at, ctx })
+  }
+  const added = s.items[s.items.length - 1]!
+  if (family && entry.deps.length) {
+    for (const dep of entry.deps) {
+      const d = s.items.find(i => i.id === dep.id)
+      if (d && !d.anchor) s = replaceItem(s, { ...d, anchor: { ...dep.anchor, id: added.id } })
+    }
+    s = carry(s, [[x, added]], ctx, index, notes, 'place')
+  }
+  return { state: s, notes }
+}
+
 // ---------- furnish ----------
 
 type Style = NonNullable<ReturnType<typeof styleOf>>
@@ -267,7 +553,7 @@ function furnishRooms(state: HomeState, rooms: Room[], style: Style | null, ctx:
         return
       }
       if (res.note) notes.push(`${room.name}: ${res.note}`)
-      s = addItems(s, desc, res, props, group)
+      s = addItems(s, desc, res, props, group, { spot: { ...e.at, room: room.id }, ctx: roomCtx })
     })
     if (style) {
       const rs = s.plan.rooms.map(x => (x.id === room.id ? { ...x, walls: { ...x.walls, color: style.walls, pattern: 'plain' as const }, floor: { ...x.floor, color: style.floor.color, pattern: style.floor.pattern as Surface['pattern'] } } : x))
@@ -275,7 +561,7 @@ function furnishRooms(state: HomeState, rooms: Room[], style: Style | null, ctx:
       surfaces.push(`${room.id}:walls`, `${room.id}:floor`)
     }
   }
-  return { state: s, notes, surfaces }
+  return { state: { ...s, items: unhook(s.items) }, notes, surfaces }
 }
 
 /** Soft things take the palette in turn with the style's trim; wooden things take the trim; appliances and fixtures stay as they are. */

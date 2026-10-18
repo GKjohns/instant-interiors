@@ -2,12 +2,18 @@
  * Plan-reader bench: every image in public/samples/ through extractPlan (no dev server), with and without a
  * hint, scored against ground truth where we have it (the drawn samples = shared/plan/samples.ts; the real
  * listing desktop_2br.png = the labels printed on it). Results land in internal_docs/20261017_instant_interiors_v0/extract/.
- *   node --env-file=.env scripts/bench-extract.mjs [--only desktop] [--model sonnet] [--hint-only|--no-hint] [--path object|text] [--reasoning minimal|low] [--conc 2]
+ *   node --env-file=.env scripts/bench-extract.mjs [--only desktop] [--model sonnet] [--hint-only|--no-hint] [--hint "…"]
+ *     [--path object|text] [--reasoning minimal|low] [--conc 2] [--repeat 3] [--reads 1|2] [--label "before"]
+ * `--repeat N` runs every (image, hint) N times and reports the spread (room count, total area, and on desktop_2br
+ * whether the living room comes back open to the kitchen), because a reader that is right once is not stable.
+ * `--reads 1` is the single-read path; the default (2) is what the app ships: two reads, the better one kept.
+ * Each run appends a dated section to the README in the output folder.
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, extname, resolve } from 'node:path'
 import { extractPlan } from '../server/utils/planExtract.ts'
 import { SAMPLES } from '../shared/plan/samples.ts'
+import { doorsOf, entry, walls } from '../shared/plan/geometry.ts'
 import { area, bounds, centroid, dist } from '../shared/plan/poly.ts'
 import { flags } from './lib/harness.mjs'
 import { mdTable } from './lib/table.mjs'
@@ -19,7 +25,10 @@ const reasoning = opt('--reasoning')
 const model = opt('--model')
 const conc = Number(opt('--conc', 2))
 const hints = has('--hint-only') ? [true] : has('--no-hint') ? [false] : [false, true]
-const HINT = 'A 2-bedroom apartment listing plan; the dimension labels are feet and inches.'
+const HINT = opt('--hint', 'A 2-bedroom apartment listing plan; the dimension labels are feet and inches.')
+const repeat = Math.max(1, Number(opt('--repeat', 1)))
+const reads = opt('--reads') ? Number(opt('--reads')) : undefined
+const label = opt('--label', '')
 
 const samplesDir = resolve(import.meta.dirname, '../public/samples')
 const outDir = resolve(import.meta.dirname, '../internal_docs/20261017_instant_interiors_v0/extract')
@@ -188,20 +197,73 @@ function scoreSample(plan, truth) {
   return result()
 }
 
+// ---------- stability: what has to come back the same every run ----------
+
+const sumArea = p => p.rooms.reduce((s, r) => s + area(r.polygon), 0)
+
+/**
+ * How the living room meets the kitchen: 'open' when every wall between them is a full-width opening (no
+ * wall pieces: what the drawing shows), 'walled' when any stretch of wall stands between them (an invented
+ * wall, maybe with a cased hole in it), 'apart' when they share no wall. Measured from the opening widths so
+ * it means the same thing on plans read before walls knew about `open`.
+ */
+function livingKitchen(plan) {
+  const living = plan.rooms.find(r => r.type === 'living')
+  const kitchen = plan.rooms.find(r => r.type === 'kitchen')
+  if (!living || !kitchen) return 'missing'
+  const between = walls(plan).filter(w => w.rooms.includes(living.id) && w.rooms.includes(kitchen.id))
+  if (!between.length) return 'apart'
+  return between.every(w => w.openings.some(o => o.kind !== 'window' && o.width >= 0.85 * w.length)) ? 'open' : 'walled'
+}
+
+/** Rooms you can walk to from the arrival through doors and openings. */
+function reachable(plan) {
+  const seen = new Set([entry(plan).room])
+  const queue = [...seen]
+  while (queue.length) {
+    const id = queue.shift()
+    const room = plan.rooms.find(r => r.id === id)
+    for (const d of room ? doorsOf(plan, room) : []) {
+      if (d.other === 'outside' || seen.has(d.other)) continue
+      seen.add(d.other)
+      queue.push(d.other)
+    }
+  }
+  return seen
+}
+
+/** The owner's bar for desktop_2br, per run. */
+function desktopTarget(plan) {
+  const sized = DESKTOP_TRUTH.rooms.filter(t => t.type !== 'balcony').map((t) => {
+    const r = plan.rooms.find(r => t.match.test(r.name) || t.match.test(r.id))
+    return r ? pctErr(area(r.polygon), t.w * t.d) : 1
+  })
+  const seen = reachable(plan)
+  const baths = plan.rooms.filter(r => r.type === 'bathroom')
+  const lk = livingKitchen(plan)
+  const out = {
+    rooms: plan.rooms.length >= 8 && plan.rooms.length <= 11,
+    areas: sized.every(e => e <= 0.15),
+    open: lk === 'open',
+    baths: baths.length >= 2 && baths.every(b => seen.has(b.id))
+  }
+  return { ...out, lk, worst: Math.max(...sized), met: Object.values(out).every(Boolean) }
+}
+
 // ---------- runner ----------
 
 const files = readdirSync(samplesDir).filter(f => /\.(png|jpe?g)$/i.test(f) && (!only || f.includes(only))).sort()
-const jobs = files.flatMap(f => hints.map(h => ({ file: f, hint: h })))
+const jobs = files.flatMap(f => hints.flatMap(h => Array.from({ length: repeat }, (_, i) => ({ file: f, hint: h, rep: i + 1 }))))
 
 async function run(job) {
   const buf = readFileSync(resolve(samplesDir, job.file))
-  const res = await extractPlan({ image: buf, hint: job.hint ? HINT : undefined, model, path: forcePath, reasoning })
-  const stem = `${basename(job.file, extname(job.file))}.${job.hint ? 'hint' : 'nohint'}`
+  const res = await extractPlan({ image: buf, hint: job.hint ? HINT : undefined, model, path: forcePath, reasoning, reads })
+  const stem = `${basename(job.file, extname(job.file))}.${job.hint ? 'hint' : 'nohint'}${repeat > 1 ? `.r${job.rep}` : ''}`
   const truth = truthFor(job.file)
   let score = null
   if (res.ok && truth) score = truth.kind === 'sample' ? scoreSample(res.plan, truth.plan) : scoreDesktop(res.plan, truth.truth)
   const til = res.ok ? tiling(res.plan) : null
-  writeFileSync(resolve(outDir, `${stem}.json`), JSON.stringify({ file: job.file, hint: job.hint ? HINT : null, ok: res.ok, path: res.path, ms: res.ms, costUsd: res.costUsd, model: res.ok ? res.model : undefined, reason: res.ok ? undefined : res.reason, score: score ? { pass: score.pass, total: score.total, lines: score.lines } : null, tiling: til ? { coverage: til.coverage, overlaps: til.overlaps, pairs: til.pairs } : null, loose: res.ok ? res.loose : undefined, plan: res.ok ? res.plan : undefined }, null, 2))
+  writeFileSync(resolve(outDir, `${stem}.json`), JSON.stringify({ file: job.file, hint: job.hint ? HINT : null, ok: res.ok, path: res.path, reads: res.reads, chosen: res.chosen, scores: res.scores, ms: res.ms, costUsd: res.costUsd, model: res.ok ? res.model : undefined, reason: res.ok ? undefined : res.reason, score: score ? { pass: score.pass, total: score.total, lines: score.lines } : null, tiling: til ? { coverage: til.coverage, overlaps: til.overlaps, pairs: til.pairs } : null, loose: res.ok ? res.loose : undefined, plan: res.ok ? res.plan : undefined }, null, 2))
   return { job, res, score, til, stem }
 }
 
@@ -217,16 +279,17 @@ async function pool(items, n, fn) {
   return out
 }
 
-console.log(`Instant Interiors extract bench · ${new Date().toISOString().slice(0, 16)} · ${files.length} images × ${hints.length} · model ${model ?? 'sonnet'}\n`)
+console.log(`Instant Interiors extract bench · ${new Date().toISOString().slice(0, 16)} · ${files.length} images × ${hints.length} × ${repeat} · model ${model ?? 'sonnet'} · reads ${reads ?? 'default'}\n`)
 const rows = await pool(jobs, conc, run)
 const table = []
 let spent = 0
 for (const { job, res, score, til } of rows) {
   spent += res.costUsd ?? 0
-  console.log(`\n=== ${job.file} ${job.hint ? '(hint)' : '(no hint)'} · ${res.ok ? `path ${res.path}` : 'FAILED'} · ${res.ms} ms · $${(res.costUsd ?? 0).toFixed(4)}`)
+  const tag = `${job.file} ${job.hint ? '(hint)' : '(no hint)'}${repeat > 1 ? ` #${job.rep}` : ''}`
+  console.log(`\n=== ${tag} · ${res.ok ? `path ${res.path}${res.chosen ? ` · chose ${res.chosen}` : ''}` : 'FAILED'} · ${res.ms} ms · $${(res.costUsd ?? 0).toFixed(4)}`)
   if (!res.ok) {
     console.log(`  reason: ${res.reason}`)
-    table.push([job.file, job.hint ? 'y' : 'n', res.path ?? '-', res.ms, `$${(res.costUsd ?? 0).toFixed(3)}`, '-', `failed: ${res.reason.slice(0, 60)}`, '', '', ''])
+    table.push([job.file, job.hint ? 'y' : 'n', job.rep, res.path ?? '-', res.ms, `$${(res.costUsd ?? 0).toFixed(3)}`, '-', `failed: ${res.reason.slice(0, 60)}`, '', '', '', '', ''])
     continue
   }
   const p = res.plan
@@ -239,14 +302,45 @@ for (const { job, res, score, til } of rows) {
   for (const o of p.openings) counts[o.kind]++
   console.log(`  openings: ${counts.door} doors, ${counts.opening} openings, ${counts.window} windows · ${p.openings.map(o => `${o.kind[0]}:${o.rooms.join('-')}`).join(' ')}`)
   console.log(`  tiling: coverage ${pct(til.coverage)}, overlaps ${til.overlaps}${til.pairs.length ? ` (${til.pairs.join(', ')})` : ''}; bbox ${til.bb.size[0].toFixed(1)}×${til.bb.size[1].toFixed(1)} m`)
+  if (res.scores) console.log(`  read scores: ${Object.entries(res.scores).map(([k, v]) => `${k} ${v ? `${v.total.toFixed(1)} (${v.why.join('; ')})` : 'failed'}`).join(' | ')}`)
   if (res.notes.length) console.log(`  notes: ${res.notes.join(' | ')}`)
   if (score) {
     console.log(`  score ${score.pass}/${score.total}`)
     for (const l of score.lines) console.log(`    ${l}`)
   }
-  table.push([job.file, job.hint ? 'y' : 'n', res.path, res.ms, `$${res.costUsd.toFixed(3)}`, p.rooms.length, `${counts.door}/${counts.opening}/${counts.window}`, pct(til.coverage), til.overlaps, score ? `${score.pass}/${score.total}` : '-'])
+  const target = truthFor(job.file)?.kind === 'desktop' ? desktopTarget(p) : null
+  if (target) console.log(`  target: ${target.met ? 'MET' : 'missed'} · rooms ${target.rooms ? 'ok' : 'x'} · areas ${target.areas ? 'ok' : 'x'} (worst ${pct(target.worst)}) · living↔kitchen ${target.lk} · baths ${target.baths ? 'reachable' : 'NOT reachable'}`)
+  table.push([job.file, job.hint ? 'y' : 'n', job.rep, `${res.path}${res.chosen ? `/${res.chosen}` : ''}`, res.ms, `$${res.costUsd.toFixed(3)}`, p.rooms.length, `${counts.door}/${counts.opening}/${counts.window}`, sumArea(p).toFixed(1), pct(til.coverage), til.overlaps, score ? `${score.pass}/${score.total}` : '-', target ? `${target.lk}${target.met ? ' · MET' : ''}` : '-'])
 }
+
+// The spread per (image, hint): the number that says whether reads have stopped varying.
+const spread = []
+for (const f of files) {
+  for (const h of hints) {
+    const runs = rows.filter(r => r.job.file === f && r.job.hint === h)
+    const ok = runs.filter(r => r.res.ok)
+    if (!ok.length) {
+      spread.push([f, h ? 'y' : 'n', `0/${runs.length}`, '-', '-', '-', '-'])
+      continue
+    }
+    const n = ok.map(r => r.res.plan.rooms.length)
+    const a = ok.map(r => sumArea(r.res.plan))
+    const desk = truthFor(f)?.kind === 'desktop'
+    const t = desk ? ok.map(r => desktopTarget(r.res.plan)) : []
+    spread.push([f, h ? 'y' : 'n', `${ok.length}/${runs.length}`, `${Math.min(...n)}–${Math.max(...n)}`, `${Math.min(...a).toFixed(1)}–${Math.max(...a).toFixed(1)}`,
+      desk ? `${t.filter(x => x.open).length}/${ok.length} open (${t.map(x => x.lk).join(', ')})` : '-',
+      desk ? `${t.filter(x => x.met).length}/${ok.length} (rooms ${t.filter(x => x.rooms).length}, areas ${t.filter(x => x.areas).length}, baths ${t.filter(x => x.baths).length})` : '-'])
+  }
+}
+console.log(`\nspread:\n${mdTable(['image', 'hint', 'ok', 'rooms', 'total m²', 'living↔kitchen', 'target'], spread)}`)
 console.log(`\ntotal spend $${spent.toFixed(4)}`)
-const readme = `# Plan-reader bench · ${new Date().toISOString().slice(0, 16)}\n\nmodel ${model ?? 'sonnet'} · hint: "${HINT}"\n\n${mdTable(['image', 'hint', 'path', 'ms', 'cost', 'rooms', 'doors/openings/windows', 'coverage', 'overlaps', 'score'], table)}\n\nTotal spend $${spent.toFixed(4)}. Per-run JSON (loose + normalized plan + score lines) sits next to this file.\n`
-writeFileSync(resolve(outDir, 'README.md'), readme)
-console.log(`wrote ${resolve(outDir, 'README.md')}`)
+const head = `## ${new Date().toISOString().slice(0, 16)}${label ? ` · ${label}` : ''}`
+const section = `${head}\n\nmodel ${model ?? 'sonnet'} · reads ${reads ?? 'default (2)'} · repeat ${repeat} · hint: "${HINT}"\n\n${mdTable(['image', 'hint', 'run', 'path/chosen', 'ms', 'cost', 'rooms', 'doors/openings/windows', 'm²', 'coverage', 'overlaps', 'score', 'living↔kitchen'], table)}\n\n${repeat > 1 ? `Spread over ${repeat} runs:\n\n${mdTable(['image', 'hint', 'ok', 'rooms', 'total m²', 'living↔kitchen', 'target (8–11 rooms, areas ±15 %, open, baths reachable)'], spread)}\n\n` : ''}Total spend $${spent.toFixed(4)}. Per-run JSON (loose + normalized plan + score lines) sits next to this file.\n`
+const readmePath = resolve(outDir, 'README.md')
+let prev = ''
+try {
+  prev = readFileSync(readmePath, 'utf8')
+} catch { /* first run */ }
+// Append, newest last: earlier benches are the before-and-after record.
+writeFileSync(readmePath, prev ? `${prev.trimEnd()}\n\n${section}` : `# Plan-reader bench\n\n${section}`)
+console.log(`appended to ${readmePath}`)

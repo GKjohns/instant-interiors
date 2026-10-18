@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { clamp } from '../math.ts'
 import { area, cleanPolygon, closestOnSegment, signedArea, snapPolygon } from './poly.ts'
 import type { Vec2 } from './poly.ts'
+import { walls } from './geometry/walls.ts'
 
 export const ROOM_TYPES = ['living', 'bedroom', 'kitchen', 'dining', 'bathroom', 'office', 'hall', 'closet', 'laundry', 'garage', 'balcony', 'other'] as const
 export type RoomType = typeof ROOM_TYPES[number]
@@ -144,6 +145,15 @@ export const LoosePlanSchema = z.object({
     at: z.array(z.number()),
     width: z.number().optional(),
     rooms: z.array(z.string()).optional()
+  })).optional(),
+  /**
+   * The printed dimension labels ("11'5\" x 17'1\""), per room, in the plan's units: width along x, depth
+   * along z. Never drawn; the two-read scorer checks each room's bounds against what the drawing says.
+   */
+  labels: z.array(z.object({
+    room: z.string(),
+    width: z.number(),
+    depth: z.number()
   })).optional(),
   confidence: z.number().optional(),
   notes: z.array(z.string()).optional()
@@ -322,5 +332,44 @@ export function normalizePlan(loose: unknown, source: FloorPlan['source'] = { ki
   }
   const strict = FloorPlanSchema.safeParse(plan)
   if (!strict.success) return { ok: false, reason: strict.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') }
-  return { ok: true, plan: strict.data, notes }
+  return { ok: true, plan: fitOpenings(strict.data, notes), notes }
+}
+
+/** Rooms that are closed off on any real plan: a full-width "opening" into one is a misread, not an open plan. */
+const CLOSED_ROOMS = new Set<RoomType>(['bedroom', 'bathroom', 'closet', 'laundry', 'garage', 'balcony'])
+
+/**
+ * No opening is wider than the wall it sits on. The reader is told to span an open-plan boundary with one
+ * opening as wide as the shared edge; it rounds, or measures the whole room side when the neighbour covers
+ * only part of it. A cased opening wider than its wall becomes exactly that wall (centred, so it reads as
+ * fully open); a door or window is clamped and re-centred so the hole stays on the wall.
+ *
+ * An open boundary into a bedroom, bath, closet or balcony is the reader putting the open plan on the wrong
+ * pair (seen live: living "open to" Bedroom 2 while the kitchen got a wall). Opening it would delete a wall
+ * the drawing shows, so it becomes a door where the reader put it, with a note.
+ */
+function fitOpenings(plan: FloorPlan, notes: string[]): FloorPlan {
+  const fit = new Map<string, Partial<Opening>>()
+  // The plan's own widths: a derived open opening already reports its wall's length.
+  const byId = new Map(plan.openings.map(o => [o.id, o]))
+  const room = (id: string) => plan.rooms.find(r => r.id === id)
+  for (const w of walls(plan)) {
+    for (const o of w.openings) {
+      const own = byId.get(o.id)!
+      const closed = [room(w.rooms[0]), room(w.rooms[1])].find(r => r && CLOSED_ROOMS.has(r.type))
+      if (o.open && closed) {
+        const half = Math.min(0.85, w.length - 0.2) / 2
+        const t = Math.min(Math.max(closestOnSegment(own.at, w.a, w.b).t * w.length, half), w.length - half)
+        const at: Vec2 = [+(w.a[0] + ((w.b[0] - w.a[0]) / w.length) * t).toFixed(3), +(w.a[1] + ((w.b[1] - w.a[1]) / w.length) * t).toFixed(3)]
+        fit.set(o.id, { kind: 'door', width: +(2 * half).toFixed(3), at })
+        const other = room(w.rooms[0] === closed.id ? w.rooms[1] : w.rooms[0])
+        notes.push(`the read left ${closed.name} wide open to ${other?.name ?? 'the next room'}; made it a door (bedrooms, baths and closets are closed rooms)`)
+        continue
+      }
+      if (own.width <= w.length + 1e-6 || w.length < 0.4) continue
+      fit.set(o.id, { width: +w.length.toFixed(3), at: [+((w.a[0] + w.b[0]) / 2).toFixed(3), +((w.a[1] + w.b[1]) / 2).toFixed(3)] })
+    }
+  }
+  if (!fit.size) return plan
+  return { ...plan, openings: plan.openings.map(o => (fit.has(o.id) ? { ...o, ...fit.get(o.id)! } : o)), source: plan.source ? { ...plan.source, notes: [...plan.source.notes, ...notes.filter(n => !plan.source!.notes.includes(n))] } : plan.source }
 }

@@ -5,7 +5,7 @@
  */
 import type { FloorPlan } from '../plan/schema.ts'
 import type { Vec2 } from '../plan/poly.ts'
-import type { DroppedOp, Op, Props, TimeOfDay } from './ops.ts'
+import type { DroppedOp, Op, Props, Side, TimeOfDay } from './ops.ts'
 
 export interface Item {
   /** `${kind}#${n}`. */
@@ -23,6 +23,30 @@ export interface Item {
   /** The batch group it was placed in (`g<n>`), for "last" and group selection. */
   group: string
   tags: string[]
+  /** The piece it was placed against ("a lamp on the nightstand"), so moving that piece carries this one. Derived from the ops, so replay rebuilds it. */
+  anchor?: ItemAnchor
+}
+
+/**
+ * Where a dependant sits relative to its anchor, in the anchor's own frame: `offset[0]` along its length
+ * (local +x), `offset[1]` toward its front (local +z). Stored instead of a world pose so it survives the
+ * anchor turning to another wall.
+ */
+export interface ItemAnchor {
+  id: string
+  side?: Side
+  offset: Vec2
+  /** The dependant's yaw minus the anchor's. */
+  yaw: number
+  /** Only for pieces resting on the anchor's top: the gap above that top (so a taller nightstand lifts its lamp). */
+  y?: number
+}
+
+/** What a sentence's `remove` took out, so a `place` later in the same sentence can take its spot ("a king bed instead"). */
+export interface SwapMemo {
+  /** The batch group (`g<n>`) it belongs to; stale once the next sentence starts. */
+  group: string
+  removed: { item: Item, deps: { id: string, anchor: ItemAnchor }[], used?: boolean }[]
 }
 
 export interface Light {
@@ -59,6 +83,7 @@ export interface HomeState {
   nextId: number
   nextGroup: number
   lastGroup: string | null
+  swap?: SwapMemo
 }
 
 /** What a batch did, for the renderer to animate and the HUD / voice to report honestly. */

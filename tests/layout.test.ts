@@ -6,10 +6,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { distToPolygonEdge, pointInPolygon } from '../shared/plan/poly.ts'
 import type { Vec2 } from '../shared/plan/poly.ts'
-import { wallSegmentsOf } from '../shared/plan/geometry.ts'
-import { TWO_BED_APARTMENT as P } from '../shared/plan/samples.ts'
+import { corridors, wallSegmentsOf } from '../shared/plan/geometry.ts'
+import type { Corridor } from '../shared/plan/geometry.ts'
+import { SAMPLES, TWO_BED_APARTMENT as P } from '../shared/plan/samples.ts'
+import type { FloorPlan } from '../shared/plan/schema.ts'
 import { KIT } from '../shared/home/kinds.ts'
-import { faceToward, frontOf, overlapArea, resolveSpot, sideOf } from '../shared/home/layout.ts'
+import { clearanceAround, faceToward, frontOf, itemLayer, overlapArea, resolveSpot, sideOf } from '../shared/home/layout.ts'
 import { boxCorners, itemCorners, itemFootprint, resolveRoom, select } from '../shared/home/select.ts'
 import { applyBatch, createHome } from '../shared/home/state.ts'
 import type { HomeState, Item, OpContext } from '../shared/home/types.ts'
@@ -33,6 +35,25 @@ function backGap(i: Item): number {
   const f = frontOf(i.yaw)
   const w = itemFootprint(i).width
   return distToPolygonEdge([i.pos[0] - f[0] * w / 2, i.pos[1] - f[1] * w / 2], room(i.room).polygon)
+}
+
+const floorItems = (s: HomeState, roomId: string) => s.items.filter(i => i.room === roomId && itemLayer(i) === 'floor')
+const rectArea = (r: Vec2[]) => overlapArea(r, r)
+
+/** Share of a corridor's best route not covered by floor pieces (sum of overlaps, so a conservative figure). */
+function clearShare(cor: Corridor, items: Item[]): number {
+  return Math.max(...cor.routes.map((route) => {
+    const total = route.rects.reduce((t, r) => t + rectArea(r), 0)
+    const covered = route.rects.reduce((t, r) => t + items.reduce((u, i) => u + overlapArea(itemCorners(i), r), 0), 0)
+    return 1 - covered / total
+  }))
+}
+
+/** The worst door-to-door (and door-to-middle) corridor of a room, as its clear share. */
+function throughClear(s: HomeState, roomId: string, plan: FloorPlan = s.plan): number {
+  const r = plan.rooms.find(x => x.id === roomId)!
+  const cors = corridors(plan, r).filter(c => c.kind !== 'entry')
+  return Math.min(1, ...cors.map(c => clearShare(c, floorItems(s, roomId))))
 }
 
 function overlapRatio(a: Item, b: Item): number {
@@ -288,9 +309,19 @@ test('a full counter wall: the stove and fridge go on another wall or a corner o
 })
 
 test('a nightstand that cannot sit beside its bed is skipped, not exiled to another wall', () => {
-  const c = ctx({ gaze: { point: [9.75, 2], room: 'bedroom_2' }, player: { pos: [9.75, 2], yaw: 0, room: 'bedroom_2' } })
-  const s = run(createHome(P), [{ op: 'furnish', room: 'bedroom_2' }], c).state
-  assert.equal(byKind(s, 'nightstand').length, 0)
+  // Updated: bedroom 2's furnish now turns the bed so both nightstands fit. A bed on its north wall keeps one
+  // side open (the west), so its east side is against the wall and the right-hand nightstand has nowhere to go.
+  const c = ctx({ gaze: { point: [9.75, 2], room: 'bedroom_2' }, player: { pos: [50, 50], yaw: 0 } })
+  const r = run(createHome(P), [
+    { op: 'place', kind: 'bed', at: { room: 'bedroom_2', where: 'wall', wall: 'north' } },
+    { op: 'place', kind: 'nightstand', at: { room: 'bedroom_2', where: 'near', of: { kind: 'bed' }, side: 'left' } },
+    { op: 'place', kind: 'nightstand', at: { room: 'bedroom_2', where: 'near', of: { kind: 'bed' }, side: 'right' } }
+  ], c)
+  const bed = byKind(r.state, 'bed')[0]!
+  const stands = byKind(r.state, 'nightstand')
+  assert.equal(stands.length, 1)
+  assert.ok(backGap(stands[0]!) < 0.05 && Math.abs(stands[0]!.pos[1] - bed.pos[1]) < 1.1, 'the one that fits is on the bed wall beside the headboard')
+  assert.ok(r.effects.notes.some(n => /no room to the right of the bed/.test(n)), `${r.effects.notes}`)
 })
 
 test('"four dining chairs near the table" (no arrange) means around it', () => {
@@ -327,11 +358,15 @@ test('a named wall that is full falls back to the kind\'s natural place, with a 
   assert.match(m.effects.say[0]!, /^I couldn't: the bed \(queen\) is already there\.$/)
 })
 
-test('a round table in a tight furnished kitchen still seats what fits, square to the room', () => {
+test('a round table in a tight furnished kitchen keeps off the way from the living room to the hall and seats what fits', () => {
+  // Updated: it used to sit in the middle and seat 3; the middle of this 3 × 3 m kitchen is the only way
+  // from the living-room opening to the hall, so the table now stands clear of it and says how many chairs fit.
   const c = ctx({ gaze: { point: [7, 1.5], room: 'kitchen' }, player: { pos: [7, 2.7], yaw: 0, room: 'kitchen' } })
   const r = run(createHome(P, { furnish: true }), [{ op: 'place', kind: 'round_table' }, { op: 'place', kind: 'dining_chair', count: 4, arrange: 'around', at: { where: 'near', of: { kind: 'round_table', room: 'kitchen' } } }], c)
-  assert.ok(byKind(r.state, 'dining_chair').length >= 3, `${byKind(r.state, 'dining_chair').length} chairs`)
-  assert.match(r.effects.notes.join(' '), /only room for 3 of 4/)
+  const chairs = byKind(r.state, 'dining_chair').length
+  assert.ok(chairs >= 1, `${chairs} chairs`)
+  assert.match(r.effects.notes.join(' '), new RegExp(`only room for ${chairs} of 4`))
+  assert.ok(throughClear(r.state, 'kitchen') >= 0.8, 'the way through the kitchen stays open')
 })
 
 test('a mirror "over the console" in a hall with no console still hangs on the hall wall, with a note; a nightstand with no bed does not', () => {
@@ -345,14 +380,20 @@ test('a mirror "over the console" in a hall with no console still hangs on the h
   assert.equal(byKind(bare.state, 'nightstand').length, 0)
 })
 
-test('a table asked for the middle of the kitchen goes in the middle even when you stand there, so the chairs fit round it', () => {
-  const c = ctx({ gaze: { point: [7, 0.8], room: 'kitchen' }, player: { pos: [7, 1.5], yaw: 0, room: 'kitchen' } })
-  const r = run(createHome(P, { furnish: true }), [
-    { op: 'place', kind: 'round_table', at: { room: 'kitchen', where: 'center' } },
-    { op: 'place', kind: 'dining_chair', count: 4, arrange: 'around', at: { room: 'kitchen', where: 'near', of: { kind: 'round_table', room: 'kitchen' } } }
-  ], c)
-  assert.deepEqual(byKind(r.state, 'round_table')[0]!.pos, [7, 1.5])
-  assert.ok(byKind(r.state, 'dining_chair').length >= 3, `${byKind(r.state, 'dining_chair').length} chairs`)
+test('a table asked for the middle of the kitchen lands the same whether or not you stand there, and never on the walk-through', () => {
+  // Updated: this pinned the table to the exact middle; that spot blocks the way from the living room to the
+  // hall, so it slides off it. What it still guards: the viewer standing in the middle doesn't push it about.
+  const at = (player: Vec2) => {
+    const c = ctx({ gaze: { point: [7, 0.8], room: 'kitchen' }, player: { pos: player, yaw: 0, room: 'kitchen' } })
+    return run(createHome(P, { furnish: true }), [
+      { op: 'place', kind: 'round_table', at: { room: 'kitchen', where: 'center' } },
+      { op: 'place', kind: 'dining_chair', count: 4, arrange: 'around', at: { room: 'kitchen', where: 'near', of: { kind: 'round_table', room: 'kitchen' } } }
+    ], c)
+  }
+  const standing = at([7, 1.5])
+  assert.deepEqual(byKind(standing.state, 'round_table')[0]!.pos, byKind(at([6.2, 2.6]).state, 'round_table')[0]!.pos)
+  assert.ok(byKind(standing.state, 'dining_chair').length >= 1)
+  assert.ok(throughClear(standing.state, 'kitchen') >= 0.8)
 })
 
 test('a lamp "on the nightstand" skips the one that already has a lamp; a pair of lamps "on" the nightstands sits on top, never on the floor', () => {
@@ -375,7 +416,7 @@ test('a lamp "on the nightstand" skips the one that already has a lamp; a pair o
   }
 })
 
-test('"move the bed to the other wall" (south, facing the room) lands square on the south wall beside the dresser, even said from the hall', () => {
+test('"move the bed to the other wall" (south, facing the room) lands square on the south wall, even said from the hall', () => {
   const home = createHome(P, { furnish: true })
   for (const player of [{ pos: [4, 6] as Vec2, yaw: 0, room: 'primary' }, { pos: [7, 6] as Vec2, yaw: 0, room: 'hall' }]) {
     const r = run(home, [{ op: 'move', target: { kind: 'bed', room: 'primary' }, at: { where: 'wall', wall: 'south', facing: 'room' } }], ctx({ player, gaze: { point: [4, 5.5], room: 'primary' } }))
@@ -394,4 +435,116 @@ test('"a big mirror over the console" in the hall: no console and no wall for 1.
   assert.ok(mirror, `${r.effects.notes}`)
   assert.equal(mirror.props.scale, undefined)
   assert.match(r.effects.notes.join(' '), /usual size.*no console table in the hall/)
+})
+
+// ---------- circulation and livability ----------
+
+test('corridors: a strip inside each opening, a lane between each pair, and door-to-middle in a one-door room', () => {
+  const living = corridors(P, room('living'))
+  assert.deepEqual(living.map(c => c.kind), ['entry', 'entry', 'through'])
+  assert.match(living[2]!.why, /the way from the kitchen to the hall/)
+  const strip = living.find(c => /hall/.test(c.why) && c.kind === 'entry')!.routes[0]!.rects[0]!
+  assert.ok(Math.abs(rectArea(strip) - 0.9 * 1.1) < 1e-6, '0.9 × 1.1 m')
+  assert.deepEqual(corridors(P, room('bedroom_2')).map(c => c.kind), ['entry', 'reach'])
+  // Two doors facing across a 3 m bedroom: the straight lane plus ways round, so a bed can fill the middle.
+  assert.ok(corridors(P, room('primary')).find(c => c.kind === 'through')!.routes.length > 1)
+})
+
+test('the furnished living room never gets a floor piece in the hall-opening strip', () => {
+  const s = createHome(P, { furnish: true })
+  const strip = corridors(P, room('living')).find(c => c.kind === 'entry' && /hall/.test(c.why))!.routes[0]!.rects[0]!
+  for (const i of floorItems(s, 'living')) {
+    const fp = itemFootprint(i)
+    assert.ok(overlapArea(itemCorners(i), strip) <= 0.1 * fp.length * fp.width + 1e-6, `${i.id} stands in the hall opening (${i.pos})`)
+  }
+  // Before circulation the bookshelf packed into the south-east corner, right in that strip.
+  const shelf = byKind(s, 'bookshelf').find(b => b.room === 'living')!
+  assert.ok(overlapArea(itemCorners(shelf), strip) === 0, `bookshelf at ${shelf.pos}`)
+})
+
+test('furnish puts the living-room sofa off the door path, back to a blank wall, facing the room and the window', () => {
+  const s = createHome(P, { furnish: true })
+  const sofa = byKind(s, 'sofa')[0]!
+  assert.ok(backGap(sofa) < 0.05)
+  const toCenter: Vec2 = [2.75 - sofa.pos[0], 2.25 - sofa.pos[1]]
+  assert.ok(dotDir(frontOf(sofa.yaw), toCenter) > 0.9, 'faces into the room')
+  assert.ok(dotDir(frontOf(sofa.yaw), [0, -1]) > 0.99, 'toward the north window')
+  for (const cor of corridors(P, room('living'))) {
+    for (const r of cor.routes[0]!.rects) assert.equal(overlapArea(itemCorners(sofa), r), 0, `off ${cor.why}`)
+  }
+  const legroom = clearanceAround(sofa)!.zones[0]!
+  for (const i of floorItems(s, 'living').filter(x => x.id !== sofa.id && x.kind !== 'coffee_table')) {
+    assert.ok(overlapArea(itemCorners(i), legroom) < 0.01, `${i.id} in the sofa's legroom`)
+  }
+})
+
+test('a plant asked for "the corner by the door" goes in another corner, with a note that says why', () => {
+  const c = ctx({ gaze: { point: [9.75, 2], room: 'bedroom_2' }, player: { pos: [50, 50], yaw: 0 } })
+  // Facing the west wall of bedroom 2, the left-hand corner is the south-west one, right at the door from the hall.
+  const r = run(createHome(P), [{ op: 'place', kind: 'plant', at: { room: 'bedroom_2', where: 'corner', wall: 'west', side: 'left' } }], c)
+  const plant = byKind(r.state, 'plant')[0]!
+  assert.ok(plant && inside(plant, 'bedroom_2'))
+  assert.ok(Math.hypot(plant.pos[0] - 8.5, plant.pos[1] - 4.2) > 1.5, `not by the door (${plant.pos})`)
+  assert.ok(r.effects.notes.some(n => /in another corner instead.*would block the door to the hall/.test(n)), `${r.effects.notes}`)
+})
+
+test('a plant asked for in front of the sofa is refused: that is the sofa\'s legroom', () => {
+  const r = run(createHome(P), [
+    { op: 'place', kind: 'sofa', at: { room: 'living' } },
+    { op: 'place', kind: 'coffee_table', at: { room: 'living', where: 'near', of: { kind: 'sofa' }, side: 'front', dist: 0.5 } },
+    { op: 'place', kind: 'plant', at: { room: 'living', where: 'near', of: { kind: 'sofa' }, side: 'front', dist: 0.05 } }
+  ])
+  const sofa = byKind(r.state, 'sofa')[0]!
+  const legroom = clearanceAround(sofa)!.zones[0]!
+  assert.equal(byKind(r.state, 'coffee_table').length, 1, 'the coffee table belongs there')
+  for (const p of byKind(r.state, 'plant')) assert.ok(overlapArea(itemCorners(p), legroom) < 0.025, `plant in the legroom (${p.pos})`)
+})
+
+test('a bed\'s only open side stays clear after a dresser is added', () => {
+  const c = ctx({ gaze: { point: [9.75, 2], room: 'bedroom_2' }, player: { pos: [50, 50], yaw: 0 } })
+  // On the north wall of the 2.5 m wide bedroom the bed can keep one long side open: the west, toward the door.
+  const r = run(createHome(P), [
+    { op: 'place', kind: 'bed', at: { room: 'bedroom_2', where: 'wall', wall: 'north' } },
+    { op: 'place', kind: 'dresser', at: { room: 'bedroom_2', where: 'wall', wall: 'west' } }
+  ], c)
+  const bed = byKind(r.state, 'bed')[0]!
+  const dresser = byKind(r.state, 'dresser')[0]!
+  assert.ok(dresser, `${r.effects.notes}`)
+  const open = clearanceAround(bed)!.zones.filter(z => overlapArea(room('bedroom_2').polygon, z) > 0.85 * rectArea(z))
+  assert.equal(open.length, 1, 'one long side inside the room')
+  for (const i of floorItems(r.state, 'bedroom_2').filter(x => x.id !== bed.id)) assert.ok(overlapArea(itemCorners(i), open[0]!) < 0.05, `${i.id} on the open side (${i.pos})`)
+  // Packed from the corner it used to stand right along that side; now it says where it went instead.
+  assert.ok(r.effects.notes.some(n => /dresser .* instead .*open side of the bed/.test(n)), `${r.effects.notes}`)
+})
+
+test('two sofas asked for in a small room (the 3 × 3 m kitchen) yield one, with a note', () => {
+  const c = ctx({ gaze: { point: [7, 1.5], room: 'kitchen' }, player: { pos: [50, 50], yaw: 0 } })
+  const r = run(createHome(P), [{ op: 'place', kind: 'sofa', count: 2, at: { room: 'kitchen' } }], c)
+  assert.equal(byKind(r.state, 'sofa').length, 1)
+  assert.match(r.effects.notes.join(' '), /only room for 1 of 2 sofas/)
+  assert.ok(throughClear(r.state, 'kitchen') >= 0.8)
+})
+
+test('one sentence gets one main seat per room unless it asks for a count', () => {
+  const r = run(createHome(P), [{ op: 'place', kind: 'sofa', at: { room: 'living' } }, { op: 'place', kind: 'loveseat', at: { room: 'living' } }])
+  assert.equal(r.state.items.filter(i => ['sofa', 'loveseat', 'sectional'].includes(i.kind)).length, 1)
+  assert.ok(r.effects.notes.some(n => /one main seat per room/.test(n)), `${r.effects.notes}`)
+  // A later sentence can still add one: the rule is about duplicates within a sentence.
+  const later = run(r.state, [{ op: 'place', kind: 'loveseat', at: { room: 'living' } }])
+  assert.equal(byKind(later.state, 'loveseat').length, 1, `${later.effects.notes}`)
+})
+
+test('furnishing every sample leaves every door-to-door corridor at least 80 % clear, deterministically', () => {
+  for (const plan of SAMPLES) {
+    const s = createHome(plan, { furnish: true })
+    for (const r of plan.rooms) {
+      for (const cor of corridors(plan, r).filter(c => c.kind !== 'entry')) {
+        // A one-door room's way in may end at its bed or table (that is where it leads); door-to-door lanes count everything.
+        const items = floorItems(s, r.id).filter(i => cor.kind === 'through' || !(i.tags.includes('bed') || ['dining_table', 'round_table', 'island', 'car'].includes(i.kind)))
+        const share = clearShare(cor, items)
+        assert.ok(share >= 0.8, `${plan.name} / ${r.name}: ${cor.why} only ${(share * 100).toFixed(0)} % clear`)
+      }
+    }
+    assert.deepEqual(createHome(plan, { furnish: true }).items, s.items, 'same plan, same furniture')
+  }
 })

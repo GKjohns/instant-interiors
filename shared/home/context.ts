@@ -8,6 +8,7 @@
  * field, so the model targets by kind + room (or `ref: gaze`), and ids only appear on the gaze line
  * so "that" is unambiguous to a human reading the log.
  */
+import { walls } from '../plan/geometry/walls.ts'
 import { bounds, centroid, compassOf, dist, nearestEdge } from '../plan/poly.ts'
 import type { Vec2 } from '../plan/poly.ts'
 import type { FloorPlan, Opening, Room, RoomType } from '../plan/schema.ts'
@@ -26,8 +27,11 @@ export interface SceneRoom {
   center: Vec2
   /** Compass walls that carry a window. */
   windows: WallSide[]
-  /** Doors and cased openings: which wall they sit on and where they lead (`outside` for the entry). */
-  doors: { to: string, wall: WallSide, kind: 'door' | 'opening' }[]
+  /**
+   * Doors and cased openings: which wall they sit on and where they lead (`outside` for the entry). `open`
+   * marks an open-plan boundary (no wall at all), so the model treats the two rooms as one continuous space.
+   */
+  doors: { to: string, wall: WallSide, kind: 'door' | 'opening', open?: boolean }[]
 }
 
 export interface SceneItem {
@@ -61,14 +65,14 @@ export function wallOf(room: Pick<Room, 'polygon'>, at: Vec2): WallSide {
   return compassOf(nearestEdge(at, room.polygon).normal)
 }
 
-function trimRoom(room: Room, openings: Opening[]): SceneRoom {
+function trimRoom(room: Room, openings: Opening[], open: Set<string>): SceneRoom {
   const windows = new Set<WallSide>()
   const doors: SceneRoom['doors'] = []
   for (const o of openings) {
     if (!o.rooms.includes(room.id)) continue
     const wall = wallOf(room, o.at)
     if (o.kind === 'window') windows.add(wall)
-    else doors.push({ to: o.rooms[0] === room.id ? o.rooms[1] : o.rooms[0], wall, kind: o.kind })
+    else doors.push({ to: o.rooms[0] === room.id ? o.rooms[1] : o.rooms[0], wall, kind: o.kind, ...(open.has(o.id) ? { open: true } : {}) })
   }
   const b = bounds(room.polygon)
   const c = centroid(room.polygon)
@@ -84,9 +88,10 @@ function trimRoom(room: Room, openings: Opening[]): SceneRoom {
 }
 
 function trimPlan(plan: FloorPlan): Pick<Scene, 'plan' | 'rooms'> {
+  const open = new Set(walls(plan).flatMap(w => w.openings.filter(o => o.open).map(o => o.id)))
   return {
     plan: { id: plan.id, name: plan.name, north: plan.north },
-    rooms: plan.rooms.map(r => trimRoom(r, plan.openings))
+    rooms: plan.rooms.map(r => trimRoom(r, plan.openings, open))
   }
 }
 
@@ -199,7 +204,11 @@ function roomItemsText(items: SceneItem[], room?: SceneRoom): string {
 function roomLine(r: SceneRoom): string {
   const bits = [`${r.name} ${r.size[0]}×${r.size[1]} m`]
   if (r.windows.length) bits.push(`windows ${r.windows.join('+')}`)
-  const to = [...new Set(r.doors.map(d => d.to))]
+  // "open to kitchen" says there is no wall between them: one continuous space, so "the dining area" or
+  // "across from the island" can mean the room next door. Everything else is a doorway.
+  const open = [...new Set((r.doors ?? []).filter(d => d.open).map(d => d.to))]
+  const to = [...new Set((r.doors ?? []).map(d => d.to))].filter(t => !open.includes(t))
+  if (open.length) bits.push(`open to ${open.join(', ')}`)
   if (to.length) bits.push(`doors → ${to.join(', ')}`)
   return `- ${r.id}: ${bits.join(', ')}`
 }
@@ -209,8 +218,8 @@ function roomLine(r: SceneRoom): string {
  *   player: in living (Living room), facing N
  *   gaze: sofa#1 (sofa, navy) in living, 2.3 m ahead
  *   last: g3 "a lamp by the sofa" → floor_lamp ×1
- *   rooms (id: name size, windows, doors →):
- *   - living: Living room 5.5×4.5 m, windows north+west, doors → hall, kitchen
+ *   rooms (id: name size, windows, open to, doors →):
+ *   - living: Living room 5.5×4.5 m, windows north+west, open to kitchen, doors → hall
  *   items by room:
  *   - living: sofa (navy) · rug · coffee_table · floor_lamp
  *   - kitchen: empty
@@ -243,7 +252,7 @@ export function buildContext(sceneIn: Partial<Scene> | undefined, ctx: OpContext
   }
 
   if (scene.rooms.length) {
-    lines.push('rooms (id: name size, windows, doors →):')
+    lines.push('rooms (id: name size, windows, open to, doors →):')
     for (const r of scene.rooms) lines.push(roomLine(r))
   } else {
     lines.push('rooms: none')

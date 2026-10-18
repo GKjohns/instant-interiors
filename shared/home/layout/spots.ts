@@ -40,15 +40,40 @@ function* sweep(base: number, lo: number, hi: number, step = STEP): Generator<nu
   }
 }
 
-/** The candidate itself, then a widening spiral around it (axis-aligned to its yaw first). */
-export function* nudged(cands: Iterable<Cand>): Generator<Cand> {
+/**
+ * The candidate itself, then (given the site) the same pose slid sideways just out of each walking lane it
+ * sits on, then a widening spiral around it (axis-aligned to its yaw first).
+ */
+export function* nudged(cands: Iterable<Cand>, site?: Site): Generator<Cand> {
   for (const c of cands) {
     yield c
     if (c.pinned) continue
+    if (site) yield* outOfLanes(site, c)
     const x = sideOf(c.yaw)
     const z = frontOf(c.yaw)
     const dirs: Vec2[] = [x, [-x[0], -x[1]], z, [-z[0], -z[1]], add([0, 0], x, 0.707, z, 0.707), add([0, 0], x, -0.707, z, 0.707), add([0, 0], x, 0.707, z, -0.707), add([0, 0], x, -0.707, z, -0.707)]
     for (const r of NUDGE_RADII) for (const d of dirs) yield { ...c, pos: add(c.pos, d, r) }
+  }
+}
+
+/** Slide a free piece perpendicular to each lane it stands on until it clears it, on whichever side it already leans. */
+function* outOfLanes(site: Site, c: Cand): Generator<Cand> {
+  const half = Math.max(site.fp.length, site.fp.width) / 2
+  for (const cor of site.corridors) {
+    for (const [a, b] of cor.routes[0]!.segs) {
+      const L = dist(a, b)
+      if (L < EPS) continue
+      const u: Vec2 = [(b[0] - a[0]) / L, (b[1] - a[1]) / L]
+      const n: Vec2 = [-u[1], u[0]]
+      const rel: Vec2 = [c.pos[0] - a[0], c.pos[1] - a[1]]
+      const t = dot(rel, u)
+      const d = dot(rel, n)
+      const need = cor.width / 2 + half + 0.05
+      if (t < -half || t > L + half || Math.abs(d) >= need) continue
+      const sgn = d >= 0 ? 1 : -1
+      yield { ...c, pos: add(c.pos, n, sgn * (need - Math.abs(d))) }
+      yield { ...c, pos: add(c.pos, n, -sgn * (need + Math.abs(d))) }
+    }
   }
 }
 
@@ -58,11 +83,11 @@ export function* candidates(site: Site, where: Place, side: Side | undefined, sp
     case 'corner': return yield* cornerCands(site, span)
     case 'window': return yield* windowCands(site, span)
     case 'door': return yield* doorCands(site, span)
-    case 'center': return yield* nudged(centerCands(site))
-    case 'free': return yield* nudged(freeCands(site))
-    case 'gaze': return yield* nudged(pointCands(site, site.ctx.gaze.point, span, 'gaze'))
-    case 'here': return yield* nudged(pointCands(site, site.ctx.player.pos, span, 'here'))
-    case 'near': return yield* nudged(nearCands(site, side, span))
+    case 'center': return yield* nudged(centerCands(site), site)
+    case 'free': return yield* nudged(freeCands(site), site)
+    case 'gaze': return yield* nudged(pointCands(site, site.ctx.gaze.point, span, 'gaze'), site)
+    case 'here': return yield* nudged(pointCands(site, site.ctx.player.pos, span, 'here'), site)
+    case 'near': return yield* nudged(nearCands(site, side, span), site)
   }
 }
 
@@ -97,14 +122,14 @@ function wallPose(site: Site, rw: RoomWall, along: number, gap: number): Cand {
 function* wallCands(site: Site, span: number, compass?: Compass): Generator<Cand> {
   const gap = site.spot?.dist ?? WALL_GAP
   for (const rw of rankWalls(site, compass)) {
-    for (const st of stretchesFor(site, rw)) {
+    for (const [k, st] of stretchesFor(site, rw).entries()) {
       if (st.length < span) continue
       const lo = st.from + span / 2
       const hi = st.to - span / 2
       // Packing starts at a real corner of the room, not at the edge of a door.
       const fromCorner = st.from <= 0.01 ? lo : st.to >= rw.length - 0.01 ? hi : lo
       const base = packs(site.kind) ? fromCorner : (lo + hi) / 2
-      for (const along of sweep(base, lo, hi)) yield wallPose(site, rw, along, gap)
+      for (const along of sweep(base, lo, hi)) yield { ...wallPose(site, rw, along, gap), wall: rw.index, slot: `w${rw.index}.${k}` }
     }
   }
 }
@@ -120,13 +145,13 @@ function* cornerCands(site: Site, span: number): Generator<Cand> {
   const other = want && site.spot?.side === 'left' ? leftOfWall(want) : want && site.spot?.side === 'right' ? leftOfWall(leftOfWall(leftOfWall(want))) : undefined
   const doorDist = (c: RoomCorner) => Math.min(Infinity, ...site.doors.map(d => dist(d.at, c.point)))
   const corners = site.corners
-    .filter(c => !want || (c.walls.includes(want) && (!other || c.walls.includes(other))))
-    .map(c => ({ c, score: Math.min(doorDist(c), 3) + site.rand() * 0.01 }))
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => !want || (c.walls.includes(want) && (!other || c.walls.includes(other))))
+    .map(x => ({ ...x, score: Math.min(doorDist(x.c), 3) + site.rand() * 0.01 }))
     .sort((p, q) => q.score - p.score)
-    .map(x => x.c)
   // Every corner proper before anything slides along a wall away from one.
   for (const slide of [0, 0.1, 0.2, 0.35, 0.5, 0.7]) {
-    for (const c of corners) {
+    for (const { c, i } of corners) {
       const e0 = site.walls[c.edges[0]]!
       const e1 = site.walls[c.edges[1]]!
       const backs = e0.length >= e1.length ? [[e0, e1], [e1, e0]] : [[e1, e0], [e0, e1]]
@@ -135,7 +160,7 @@ function* cornerCands(site: Site, span: number): Generator<Cand> {
         let yaw = yawFacing(back.inward)
         // A squarish room-facing piece (armchair, sectional corner) looks into the room rather than along one wall.
         if (site.kind.face === 'room' && Math.abs(site.fp.length - site.fp.width) < 0.25) yaw = faceToward(pos, site.center)
-        yield { pos, yaw, room: site.room.id, pinned: true }
+        yield { pos, yaw, room: site.room.id, pinned: true, corner: i, slot: `c${i}` }
       }
     }
   }

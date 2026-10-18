@@ -2,12 +2,15 @@
  * The plan reader: a floor-plan image → a LoosePlan (Sonnet vision through the Vercel AI Gateway) →
  * `normalizePlan` → a strict FloorPlan. Structured output first (`generateText` + `Output.object`); if the
  * gateway or Anthropic refuses the schema, the same prompt runs again as JSON-in-text and `parseLooseJson`
- * recovers the object. Plain module (explicit imports, no Nitro globals) so `scripts/bench-extract.mjs`
- * runs it directly. Never throws: every failure is `{ ok: false, reason }`.
+ * recovers the object. Two reads run side by side and `chooseRead` (shared/plan/score.ts) keeps the better,
+ * because one read alone varies run to run. Plain module (explicit imports, no Nitro globals) so
+ * `scripts/bench-extract.mjs` runs it directly. Never throws: every failure is `{ ok: false, reason }`.
  */
 import { generateText, Output } from 'ai'
 import { connectRooms } from '../../shared/plan/geometry.ts'
 import { LoosePlanSchema, normalizePlan, ROOM_TYPES } from '../../shared/plan/schema.ts'
+import { chooseRead } from '../../shared/plan/score.ts'
+import type { ReadScore } from '../../shared/plan/score.ts'
 import type { FloorPlan, LoosePlan } from '../../shared/plan/schema.ts'
 import { PLAN_MODEL } from '../../shared/models.ts'
 import { costUsd, resolveModel } from './aiModels.ts'
@@ -17,9 +20,26 @@ import { parseLooseJson } from './opStream.ts'
 
 export type ExtractPath = 'object' | 'text'
 
+export type ReadId = 'a' | 'b'
+
 export type ExtractResult
-  = | { ok: true, plan: FloorPlan, loose: LoosePlan, notes: string[], ms: number, costUsd: number, usage: Usage, path: ExtractPath, model: string }
-    | { ok: false, reason: string, ms: number, costUsd?: number, path?: ExtractPath }
+  = | {
+    ok: true
+    plan: FloorPlan
+    loose: LoosePlan
+    notes: string[]
+    ms: number
+    /** Every attempt of every read. */
+    costUsd: number
+    usage: Usage
+    path: ExtractPath
+    model: string
+    /** How many reads ran, which one was kept, and how each scored (null = that read failed). */
+    reads: 1 | 2
+    chosen: ReadId
+    scores: Partial<Record<ReadId, ReadScore | null>>
+  }
+  | { ok: false, reason: string, ms: number, costUsd?: number, path?: ExtractPath }
 
 export interface ExtractOptions {
   /** A data URL, bare base64, or the raw bytes. */
@@ -31,6 +51,8 @@ export interface ExtractOptions {
   path?: ExtractPath
   /** Sonnet's default (adaptive) thinking can eat the whole output budget on a vision read; 'minimal' keeps the tokens for the JSON. */
   reasoning?: Reasoning
+  /** 2 (default): two concurrent reads, the better kept by `chooseRead`. 1: a single read (the bench's baseline). */
+  reads?: 1 | 2
   signal?: AbortSignal
 }
 
@@ -54,33 +76,37 @@ export function planPrompt(hint?: string): string {
 - No labels at all? Estimate from a door (0.9 m wide), a bathtub (1.7 m), a queen bed (1.6 x 2.0 m) and say so in "notes" (units still "m").
 
 ## Procedure (think it through before writing)
-1. List every printed label with its size in metres.
+1. List every printed label with its size in metres (they go in "labels").
 2. Group the rooms into vertical COLUMNS (rooms stacked above each other share x-lines). Column width = the width of its labelled room. x-lines: x0 = 0, x1 = width of column 1, x2 = x1 + width of column 2, and so on: columns are CONTIGUOUS (the next one starts exactly where the previous one ends; wall thickness is ignored, so the plan comes out a few cm narrower than reality, which is fine).
 3. Down each column, z-lines come from the labelled depths; the unlabelled rooms below or above a labelled one take the remaining depth of that column, split by their drawn proportion (a bath drawn half as deep as the bedroom above it is half as deep). Rooms stacked in a column are contiguous too (the next starts exactly where the previous ends). The plan's total depth = the deepest column; every column reaches the same bottom edge unless the drawing clearly steps.
 4. A short corridor between a bedroom and its bath or closets (often holding a mech / W/D closet) is a room of type hall: give it its rectangle so the doors off it have somewhere to go.
 5. Check: the sum of your room areas must be within 10% of the bounding box area, with no two rooms overlapping and no gaps between neighbours. An unassigned rectangle goes to the hall or the nearest room; never leave a hole and never let two polygons share interior area.
 
 ## Rooms
-- Every enclosed space is a room: bedrooms, living, kitchen, dining, every bath, hall / foyer / corridor, every closet (incl. walk-in), W/D or laundry, mech / utility, pantry, balcony / terrace. Walls themselves are never rooms. Any LABELLED closet ("Mech.", "W/D", "WIC", "Pantry") is always its own room, even at 1 m²: never fold it into the hall or a bedroom.
+- Every enclosed space is a room: bedrooms, living, kitchen, dining, every bath, hall / foyer / corridor, every closet (incl. walk-in), W/D or laundry, mech / utility, pantry, balcony / terrace. Walls themselves are never rooms. Any LABELLED closet ("Mech.", "W/D", "WIC", "Pantry") is always its own room, even at 1 m²: never fold it into the hall or a bedroom, not even to simplify.
 - A kitchen is the space with the counters, sink and stove symbols along its walls: a full room, typically 2.5-4 m wide, never a thin strip. If it is open to the living room, the living room ends where its label says and the kitchen starts there.
 - Each room is ONE axis-aligned polygon ([x, z] vertices, clockwise, 4 to 12 vertices; use an L-shape when the room is L-shaped). Interior wall thickness is ignored: neighbouring rooms share their boundary line exactly, so reuse the same x or z value for every edge on the same wall line. Rooms TILE the plan: no gaps, no overlaps.
-- A boundary drawn with no wall (an open-plan Living/Dining) stays ONE room unless a clear line or change of floor finish separates the two.
+- One label = one room: a space labelled "Living/Dining" is ONE room even though it has two uses. A kitchen (counters, sink, stove, island) open to the living room is still its OWN room, even with no wall between them: draw both and join them with an open boundary (see Openings). Likewise an unlabelled corridor or entry that opens off the living room or kitchen without a wall is its own hall room joined by an open boundary.
 - "name" = the label text as printed ("Bedroom 1", "Living/Dining", "W/D", "Mech."); unlabelled spaces get a plain name ("Hall", "Closet", "Bath 2"). "id" = short snake_case ("bedroom_1", "living", "bath_2", "wd", "mech"). "type" is one of: ${ROOM_TYPES.join(', ')} (W/D → laundry, mech/utility → other, walk-in closet → closet, foyer/corridor → hall, Living/Dining → living, inset balcony → balcony).
 
 ## Openings
 - "door": a door leaf with its quarter-circle swing arc, or a sliding/pocket door. width 0.8-0.9 m (closets 0.6-0.8, entry 0.9-1.0, a double door 1.5). Trace each arc to the two spaces it joins and record every door separately: a bedroom often reaches its bath through a walk-in closet or a short hall, so that is two doors (bedroom-closet, closet-bath), not one.
-- "opening": a cased opening or a plain gap in a wall between two rooms with no door drawn.
+- "opening": a gap in a DRAWN wall between two rooms with no door leaf (a cased opening, an archway): width as drawn.
+- OPEN BOUNDARIES: where two rooms are open to each other on the drawing (no wall line between them: an open kitchen beside the living room, a half wall, a counter or island, a change of floor material only), record ONE "opening" between them whose "width" is the FULL length of the edge they share (the whole open span) and whose "at" is the middle of that edge. Add a note for each ("living is open to the kitchen").
+- Never invent a wall, door or divider the drawing does not show. No wall line drawn = an open boundary, never a door.
 - "window": the thin, pale double-line segments set into an EXTERIOR wall (the outer boundary of the plan). width as drawn (0.6-3 m). Count them along the top, left, right and bottom boundaries. An INSET balcony has its own outer edge on the boundary; the glass wall between the balcony and EACH room behind it is an opening to record: a door where a door is drawn, otherwise a window, with rooms ["<room>", "<balcony id>"] (not outside).
 - For each: "at" = the [x, z] centre of the opening ON the shared wall line (one coordinate equals that wall's x or z line exactly), "rooms" = the two room ids either side, or ["<room>", "outside"] for exterior walls (windows, the entry door). The two rooms you name MUST share that wall line at that point; if they don't touch, a room is missing between them (a hall or closet): add it and split the door in two.
 - Do not invent openings; do not skip the ones you can see. Every bedroom and bathroom has a door; every bedroom and the living room normally have a window on an exterior wall. The entry door is on the exterior wall, usually into the hall or kitchen/living.
+- Before answering, walk it: every room must be reachable from the entry door through your doors and openings. A corridor that serves a bedroom and its bath almost always opens onto the living room or kitchen (an open boundary when no wall line or door is drawn there).
 
 ## Also
 - "name": a short title for the plan (use any printed title, else "2 bed / 2 bath" style).
 - "ceiling": only if printed (metres).
-- "confidence": 0-1 for the whole read. "notes": short strings about anything unsure (an illegible label, a guessed wall line, an assumed window).
+- "labels": one entry per printed dimension label: {"room": "<room id>", "width": <x extent>, "depth": <z extent>} in metres, as you applied it to that room (11'5" x 17'1" read as 11'5" wide → width 3.48, depth 5.21). Omit when the plan prints no sizes.
+- "confidence": 0-1 for the whole read. "notes": short strings about each open boundary and anything unsure (an illegible label, a guessed wall line, an assumed window).
 
 ## Output shape
-{"name":"…","units":"m","north":0,"rooms":[{"id":"bedroom_1","name":"Bedroom 1","type":"bedroom","polygon":[[0,0],[3.5,0],[3.5,5.2],[0,5.2]]},…],"openings":[{"kind":"door","at":[3.5,4.6],"width":0.85,"rooms":["bedroom_1","living"]},{"kind":"window","at":[1.75,0],"width":1.6,"rooms":["bedroom_1","outside"]},…],"confidence":0.8,"notes":["…"]}`
+{"name":"…","units":"m","north":0,"rooms":[{"id":"bedroom_1","name":"Bedroom 1","type":"bedroom","polygon":[[0,0],[3.5,0],[3.5,5.2],[0,5.2]]},…],"openings":[{"kind":"door","at":[3.5,4.6],"width":0.85,"rooms":["bedroom_1","living"]},{"kind":"opening","at":[5.2,5.15],"width":3.45,"rooms":["living","kitchen"]},{"kind":"window","at":[1.75,0],"width":1.6,"rooms":["bedroom_1","outside"]},…],"labels":[{"room":"bedroom_1","width":3.48,"depth":5.21},…],"confidence":0.8,"notes":["living is open to the kitchen","…"]}`
   return hint?.trim() ? `${body}\n\nThe user says: ${hint.trim().slice(0, 300)}` : body
 }
 
@@ -150,9 +176,53 @@ async function callModel(path: ExtractPath, modelId: string, prompt: string, img
   }
 }
 
+interface Read {
+  ok: boolean
+  reason?: string
+  costUsd: number
+  path: ExtractPath
+  usage?: Usage
+  loose?: LoosePlan
+  /** What the reader drew, normalized; `plan` is it after `connectRooms`. */
+  drawn?: FloorPlan
+  plan?: FloorPlan
+  notes?: string[]
+  added?: string[]
+}
+
+/** One read: structured output, JSON-in-text when that fails, then normalize and make it walkable. Never throws. */
+async function readOnce(opts: ExtractOptions, id: string, prompt: string, img: { data: Buffer, mediaType: string }, signal: AbortSignal): Promise<Read> {
+  let spent = 0
+  let path: ExtractPath = opts.path ?? 'object'
+  try {
+    const reasoning: Reasoning = opts.reasoning ?? 'minimal'
+    let attempt = await callModel(path, id, prompt, img, reasoning, signal)
+    spent += costUsd(id, attempt.usage)
+    if (path === 'object' && !opts.path && (attempt.error || attempt.loose === undefined) && !signal.aborted) {
+      // Anything short of an abort gets the text path: a refused schema, a truncated object, an empty output.
+      console.warn(`[plan] structured output failed (${(attempt.error ?? 'empty structured output').slice(0, 120)}); falling back to JSON-in-text`)
+      path = 'text'
+      attempt = await callModel('text', id, prompt, img, reasoning, signal)
+      spent += costUsd(id, attempt.usage)
+    }
+    if (attempt.error && attempt.loose === undefined) return { ok: false, reason: attempt.error, costUsd: spent, path }
+    const parsed = LoosePlanSchema.safeParse(attempt.loose)
+    if (!parsed.success) return { ok: false, reason: `plan shape: ${parsed.error.issues.slice(0, 5).map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`, costUsd: spent, path }
+    const norm = normalizePlan(parsed.data, { kind: 'upload', notes: [] })
+    if (!norm.ok) return { ok: false, reason: norm.reason, costUsd: spent, path }
+    // A room with no way in is unwalkable; connectRooms gives it one door and says so in the notes.
+    const linked = connectRooms(norm.plan)
+    const plan = linked.notes.length && linked.plan.source ? { ...linked.plan, source: { ...linked.plan.source, notes: [...linked.plan.source.notes, ...linked.notes] } } : linked.plan
+    return { ok: true, costUsd: spent, path, usage: attempt.usage, loose: parsed.data, drawn: norm.plan, plan, notes: [...norm.notes, ...linked.notes], added: linked.added }
+  } catch (err) {
+    return { ok: false, reason: ((err as Error)?.message ?? String(err)).slice(0, 300), costUsd: spent, path }
+  }
+}
+
 /**
- * Image → FloorPlan. Structured output first; JSON-in-text when the schema is refused or the object comes
- * back empty. `path` says which one produced the plan. Cost covers every attempt made.
+ * Image → FloorPlan. Two reads run concurrently on the same prompt (the gateway ignores temperature and seed
+ * for Sonnet, but reads vary run to run on their own) and `chooseRead` keeps the better one by a deterministic
+ * score, so one bad read no longer decides the home. `reads: 1` is the single read. Cost covers every attempt.
  */
 export async function extractPlan(opts: ExtractOptions): Promise<ExtractResult> {
   const started = Date.now()
@@ -168,31 +238,32 @@ export async function extractPlan(opts: ExtractOptions): Promise<ExtractResult> 
   if (opts.signal?.aborted) onOuter()
   else opts.signal?.addEventListener('abort', onOuter, { once: true })
   const timer = setTimeout(() => ctrl.abort(new Error(`no answer in ${CALL_TIMEOUT_MS} ms`)), CALL_TIMEOUT_MS)
-  let spent = 0
   try {
-    let path: ExtractPath = opts.path ?? 'object'
-    const reasoning: Reasoning = opts.reasoning ?? 'minimal'
-    let attempt = await callModel(path, id, prompt, img, reasoning, ctrl.signal)
-    spent += costUsd(id, attempt.usage)
-    if (path === 'object' && !opts.path && (attempt.error || attempt.loose === undefined) && !ctrl.signal.aborted) {
-      // Anything short of an abort gets the text path: a refused schema, a truncated object, an empty output.
-      console.warn(`[plan] structured output failed (${(attempt.error ?? 'empty structured output').slice(0, 120)}); falling back to JSON-in-text`)
-      path = 'text'
-      attempt = await callModel('text', id, prompt, img, reasoning, ctrl.signal)
-      spent += costUsd(id, attempt.usage)
+    const n = opts.reads === 1 ? 1 : 2
+    const ids: ReadId[] = (['a', 'b'] as const).slice(0, n)
+    const reads = await Promise.all(ids.map(() => readOnce(opts, id, prompt, img, ctrl.signal)))
+    const spent = reads.reduce((s, r) => s + r.costUsd, 0)
+    const { chosen, scores } = chooseRead(reads.map(r => (r.ok && r.drawn && r.loose ? { plan: r.drawn, loose: r.loose, interventions: r.added?.length ?? 0 } : null)))
+    const best = reads[chosen]
+    if (chosen < 0 || !best?.ok || !best.plan || !best.loose || !best.usage) {
+      const why = ctrl.signal.aborted && ctrl.signal.reason instanceof Error ? ctrl.signal.reason.message : reads[0]!.reason ?? 'no usable read'
+      return { ok: false, reason: why.slice(0, 300), ms: ms(), costUsd: spent, path: reads[0]!.path }
     }
-    if (attempt.error && attempt.loose === undefined) return { ok: false, reason: attempt.error, ms: ms(), costUsd: spent, path }
-    const parsed = LoosePlanSchema.safeParse(attempt.loose)
-    if (!parsed.success) return { ok: false, reason: `plan shape: ${parsed.error.issues.slice(0, 5).map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`, ms: ms(), costUsd: spent, path }
-    const norm = normalizePlan(parsed.data, { kind: 'upload', notes: [] })
-    if (!norm.ok) return { ok: false, reason: norm.reason, ms: ms(), costUsd: spent, path }
-    // The reader often misses a door or walls off an open kitchen; a home you can't walk through is worse than a guessed door.
-    const linked = connectRooms(norm.plan)
-    const notes = linked.added.length ? [...norm.notes, `added what the read missed: ${linked.added.join(', ')}`] : norm.notes
-    return { ok: true, plan: linked.plan, loose: parsed.data, notes, ms: ms(), costUsd: spent, usage: attempt.usage, path, model: alias }
-  } catch (err) {
-    const why = ctrl.signal.aborted && ctrl.signal.reason instanceof Error ? ctrl.signal.reason.message : ((err as Error)?.message ?? String(err))
-    return { ok: false, reason: why.slice(0, 300), ms: ms(), costUsd: spent }
+    if (n > 1) console.info(`[plan] reads ${ids.map((k, i) => `${k} ${scores[i] ? `${scores[i]!.total} (${scores[i]!.rooms} rooms)` : 'failed'}`).join(' · ')} → ${ids[chosen]}`)
+    return {
+      ok: true,
+      plan: best.plan,
+      loose: best.loose,
+      notes: best.notes ?? [],
+      ms: ms(),
+      costUsd: spent,
+      usage: best.usage,
+      path: best.path,
+      model: alias,
+      reads: n,
+      chosen: ids[chosen]!,
+      scores: Object.fromEntries(ids.map((k, i) => [k, scores[i] ?? null]))
+    }
   } finally {
     clearTimeout(timer)
     opts.signal?.removeEventListener('abort', onOuter)

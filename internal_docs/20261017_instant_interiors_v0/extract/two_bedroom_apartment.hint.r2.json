@@ -1,0 +1,1029 @@
+{
+  "file": "two_bedroom_apartment.png",
+  "hint": "2 bedroom apartment, dimensions in metres",
+  "ok": true,
+  "path": "object",
+  "reads": 2,
+  "chosen": "a",
+  "scores": {
+    "a": {
+      "total": 44.94,
+      "rooms": 8,
+      "coverage": 1,
+      "overlapM2": 0,
+      "interventions": 0,
+      "sealed": 0,
+      "labelErr": 0.0014831937306806543,
+      "countBonus": 5,
+      "why": [
+        "coverage 100%",
+        "labels off 0%",
+        "room count agrees"
+      ]
+    },
+    "b": {
+      "total": 44.93,
+      "rooms": 8,
+      "coverage": 1,
+      "overlapM2": 0,
+      "interventions": 0,
+      "sealed": 0,
+      "labelErr": 0.0017941390043124885,
+      "countBonus": 5,
+      "why": [
+        "coverage 100%",
+        "labels off 0%",
+        "room count agrees"
+      ]
+    }
+  },
+  "ms": 10614,
+  "costUsd": 0.048341999999999996,
+  "model": "sonnet",
+  "score": {
+    "pass": 14,
+    "total": 15,
+    "lines": [
+      "ok   room count 8 vs 8",
+      "ok   total area 82.5 vs 82.5 m² (0% off)",
+      "ok   living ≈ living: area 24.8 vs 24.8 (0% off), centroid 0.00 m away",
+      "ok   kitchen ≈ kitchen: area 9.0 vs 9.0 (0% off), centroid 0.00 m away",
+      "ok   bedroom_2 ≈ bedroom_2: area 10.5 vs 10.5 (0% off), centroid 0.00 m away",
+      "ok   hall ≈ hall: area 12.0 vs 12.0 (0% off), centroid 0.00 m away",
+      "ok   bathroom ≈ bathroom: area 6.0 vs 6.0 (0% off), centroid 0.00 m away",
+      "ok   primary ≈ primary_bedroom: area 12.0 vs 12.0 (0% off), centroid 0.00 m away",
+      "ok   closet ≈ closet: area 3.3 vs 3.3 (0% off), centroid 0.00 m away",
+      "ok   balcony ≈ balcony: area 5.0 vs 5.0 (0% off), centroid 0.00 m away",
+      "ok   door recall 6/6 (found 6)",
+      "ok   opening recall 3/3 (found 3)",
+      "ok   window recall 6/7 (found 6)",
+      "ok   coverage 100%",
+      "FAIL overlaps 1 (hall×primary_bedroom 1.5m²)"
+    ]
+  },
+  "tiling": {
+    "coverage": 1,
+    "overlaps": 1,
+    "pairs": [
+      "hall×primary_bedroom 1.5m²"
+    ]
+  },
+  "loose": {
+    "name": "Two-bedroom apartment",
+    "units": "m",
+    "north": 0,
+    "rooms": [
+      {
+        "id": "living",
+        "name": "Living room",
+        "type": "living",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            5.5,
+            0
+          ],
+          [
+            5.5,
+            4.5
+          ],
+          [
+            0,
+            4.5
+          ]
+        ]
+      },
+      {
+        "id": "kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            5.5,
+            0
+          ],
+          [
+            8.5,
+            0
+          ],
+          [
+            8.5,
+            3
+          ],
+          [
+            5.5,
+            3
+          ]
+        ]
+      },
+      {
+        "id": "bedroom_2",
+        "name": "Bedroom 2",
+        "type": "bedroom",
+        "polygon": [
+          [
+            8.5,
+            0
+          ],
+          [
+            11,
+            0
+          ],
+          [
+            11,
+            4.2
+          ],
+          [
+            8.5,
+            4.2
+          ]
+        ]
+      },
+      {
+        "id": "hall",
+        "name": "Hall",
+        "type": "hall",
+        "polygon": [
+          [
+            5.5,
+            3
+          ],
+          [
+            8.5,
+            3
+          ],
+          [
+            8.5,
+            7.5
+          ],
+          [
+            6,
+            7.5
+          ],
+          [
+            6,
+            4.5
+          ],
+          [
+            5.5,
+            4.5
+          ]
+        ]
+      },
+      {
+        "id": "closet",
+        "name": "Closet",
+        "type": "closet",
+        "polygon": [
+          [
+            8.5,
+            4.2
+          ],
+          [
+            11,
+            4.2
+          ],
+          [
+            11,
+            5.5
+          ],
+          [
+            8.5,
+            5.5
+          ]
+        ]
+      },
+      {
+        "id": "balcony",
+        "name": "Balcony",
+        "type": "balcony",
+        "polygon": [
+          [
+            8.5,
+            5.5
+          ],
+          [
+            11,
+            5.5
+          ],
+          [
+            11,
+            7.5
+          ],
+          [
+            8.5,
+            7.5
+          ]
+        ]
+      },
+      {
+        "id": "bathroom",
+        "name": "Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [
+            0,
+            4.5
+          ],
+          [
+            2,
+            4.5
+          ],
+          [
+            2,
+            7.5
+          ],
+          [
+            0,
+            7.5
+          ]
+        ]
+      },
+      {
+        "id": "primary_bedroom",
+        "name": "Primary bedroom",
+        "type": "bedroom",
+        "polygon": [
+          [
+            2,
+            4.5
+          ],
+          [
+            6,
+            4.5
+          ],
+          [
+            6,
+            7.5
+          ],
+          [
+            2,
+            7.5
+          ]
+        ]
+      }
+    ],
+    "openings": [
+      {
+        "kind": "opening",
+        "at": [
+          5.5,
+          2.2
+        ],
+        "width": 4.4,
+        "rooms": [
+          "living",
+          "kitchen"
+        ]
+      },
+      {
+        "kind": "opening",
+        "at": [
+          5.5,
+          3.75
+        ],
+        "width": 1.5,
+        "rooms": [
+          "living",
+          "hall"
+        ]
+      },
+      {
+        "kind": "opening",
+        "at": [
+          7,
+          3
+        ],
+        "width": 1.2,
+        "rooms": [
+          "kitchen",
+          "hall"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          8.5,
+          3.6
+        ],
+        "width": 0.9,
+        "rooms": [
+          "hall",
+          "bedroom_2"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          8.5,
+          4.85
+        ],
+        "width": 0.7,
+        "rooms": [
+          "hall",
+          "closet"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          8.5,
+          6.5
+        ],
+        "width": 0.9,
+        "rooms": [
+          "hall",
+          "balcony"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          6,
+          6
+        ],
+        "width": 0.9,
+        "rooms": [
+          "hall",
+          "primary_bedroom"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          2,
+          6
+        ],
+        "width": 0.8,
+        "rooms": [
+          "bathroom",
+          "primary_bedroom"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          7.2,
+          7.5
+        ],
+        "width": 1,
+        "rooms": [
+          "hall",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          2.5,
+          0
+        ],
+        "width": 3,
+        "rooms": [
+          "living",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          0,
+          2.3
+        ],
+        "width": 1.2,
+        "rooms": [
+          "living",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          4,
+          7.5
+        ],
+        "width": 3,
+        "rooms": [
+          "primary_bedroom",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          1,
+          7.5
+        ],
+        "width": 1.5,
+        "rooms": [
+          "bathroom",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          9.8,
+          0
+        ],
+        "width": 1.5,
+        "rooms": [
+          "bedroom_2",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          11,
+          2
+        ],
+        "width": 1.2,
+        "rooms": [
+          "bedroom_2",
+          "outside"
+        ]
+      }
+    ],
+    "labels": [
+      {
+        "room": "living",
+        "width": 5.51,
+        "depth": 4.5
+      },
+      {
+        "room": "kitchen",
+        "width": 3,
+        "depth": 3
+      },
+      {
+        "room": "bedroom_2",
+        "width": 2.49,
+        "depth": 4.19
+      },
+      {
+        "room": "hall",
+        "width": 3,
+        "depth": 4.5
+      },
+      {
+        "room": "closet",
+        "width": 2.49,
+        "depth": 1.3
+      },
+      {
+        "room": "balcony",
+        "width": 2.49,
+        "depth": 2
+      },
+      {
+        "room": "bathroom",
+        "width": 2.01,
+        "depth": 3
+      },
+      {
+        "room": "primary_bedroom",
+        "width": 3.99,
+        "depth": 3
+      }
+    ],
+    "confidence": 0.6,
+    "notes": [
+      "living is open to the kitchen (no door drawn)",
+      "living is open to the hall",
+      "kitchen opens to hall",
+      "dimensions estimated from the plan proportions, labels only partly applied"
+    ]
+  },
+  "plan": {
+    "id": "two_bedroom_apartment",
+    "name": "Two-bedroom apartment",
+    "ceiling": 2.7,
+    "north": 0,
+    "rooms": [
+      {
+        "id": "living",
+        "name": "Living room",
+        "type": "living",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            5.5,
+            0
+          ],
+          [
+            5.5,
+            4.5
+          ],
+          [
+            0,
+            4.5
+          ]
+        ],
+        "floor": {
+          "color": "#b48f6b",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#ece5d8",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            5.5,
+            0
+          ],
+          [
+            8.5,
+            0
+          ],
+          [
+            8.5,
+            3
+          ],
+          [
+            5.5,
+            3
+          ]
+        ],
+        "floor": {
+          "color": "#c9c3b8",
+          "pattern": "tile",
+          "accent": "#b8b1a4"
+        },
+        "walls": {
+          "color": "#eee9df",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "bedroom_2",
+        "name": "Bedroom 2",
+        "type": "bedroom",
+        "polygon": [
+          [
+            8.5,
+            0
+          ],
+          [
+            11,
+            0
+          ],
+          [
+            11,
+            4.2
+          ],
+          [
+            8.5,
+            4.2
+          ]
+        ],
+        "floor": {
+          "color": "#b08d6a",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#e9e1d4",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "hall",
+        "name": "Hall",
+        "type": "hall",
+        "polygon": [
+          [
+            5.5,
+            3
+          ],
+          [
+            8.5,
+            3
+          ],
+          [
+            8.5,
+            7.5
+          ],
+          [
+            6,
+            7.5
+          ],
+          [
+            6,
+            4.5
+          ],
+          [
+            5.5,
+            4.5
+          ]
+        ],
+        "floor": {
+          "color": "#ad8b66",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#ece6da",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "closet",
+        "name": "Closet",
+        "type": "closet",
+        "polygon": [
+          [
+            8.5,
+            4.2
+          ],
+          [
+            11,
+            4.2
+          ],
+          [
+            11,
+            5.5
+          ],
+          [
+            8.5,
+            5.5
+          ]
+        ],
+        "floor": {
+          "color": "#a98a68",
+          "pattern": "carpet"
+        },
+        "walls": {
+          "color": "#eae4d8",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "balcony",
+        "name": "Balcony",
+        "type": "balcony",
+        "polygon": [
+          [
+            8.5,
+            5.5
+          ],
+          [
+            11,
+            5.5
+          ],
+          [
+            11,
+            7.5
+          ],
+          [
+            8.5,
+            7.5
+          ]
+        ],
+        "floor": {
+          "color": "#a8a39a",
+          "pattern": "concrete"
+        },
+        "walls": {
+          "color": "#cfc8bc",
+          "pattern": "brick",
+          "accent": "#b9a999"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "bathroom",
+        "name": "Bathroom",
+        "type": "bathroom",
+        "polygon": [
+          [
+            0,
+            4.5
+          ],
+          [
+            2,
+            4.5
+          ],
+          [
+            2,
+            7.5
+          ],
+          [
+            0,
+            7.5
+          ]
+        ],
+        "floor": {
+          "color": "#d8d8d4",
+          "pattern": "checker",
+          "accent": "#8a8f94"
+        },
+        "walls": {
+          "color": "#dfe7ea",
+          "pattern": "subway",
+          "accent": "#c9d3d7"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "primary_bedroom",
+        "name": "Primary bedroom",
+        "type": "bedroom",
+        "polygon": [
+          [
+            2,
+            4.5
+          ],
+          [
+            6,
+            4.5
+          ],
+          [
+            6,
+            7.5
+          ],
+          [
+            2,
+            7.5
+          ]
+        ],
+        "floor": {
+          "color": "#b08d6a",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#e9e1d4",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      }
+    ],
+    "openings": [
+      {
+        "id": "opening_1",
+        "kind": "opening",
+        "at": [
+          5.5,
+          1.5
+        ],
+        "width": 3,
+        "height": 2.05,
+        "rooms": [
+          "living",
+          "kitchen"
+        ]
+      },
+      {
+        "id": "opening_2",
+        "kind": "opening",
+        "at": [
+          5.5,
+          3.75
+        ],
+        "width": 1.5,
+        "height": 2.05,
+        "rooms": [
+          "living",
+          "hall"
+        ]
+      },
+      {
+        "id": "opening_3",
+        "kind": "opening",
+        "at": [
+          7,
+          3
+        ],
+        "width": 1.2,
+        "height": 2.05,
+        "rooms": [
+          "kitchen",
+          "hall"
+        ]
+      },
+      {
+        "id": "door_4",
+        "kind": "door",
+        "at": [
+          8.5,
+          3.6
+        ],
+        "width": 0.9,
+        "height": 2.05,
+        "rooms": [
+          "hall",
+          "bedroom_2"
+        ]
+      },
+      {
+        "id": "door_5",
+        "kind": "door",
+        "at": [
+          8.5,
+          4.85
+        ],
+        "width": 0.7,
+        "height": 2.05,
+        "rooms": [
+          "hall",
+          "closet"
+        ]
+      },
+      {
+        "id": "door_6",
+        "kind": "door",
+        "at": [
+          8.5,
+          6.5
+        ],
+        "width": 0.9,
+        "height": 2.05,
+        "rooms": [
+          "hall",
+          "balcony"
+        ]
+      },
+      {
+        "id": "door_7",
+        "kind": "door",
+        "at": [
+          6,
+          6
+        ],
+        "width": 0.9,
+        "height": 2.05,
+        "rooms": [
+          "hall",
+          "primary_bedroom"
+        ]
+      },
+      {
+        "id": "door_8",
+        "kind": "door",
+        "at": [
+          2,
+          6
+        ],
+        "width": 0.8,
+        "height": 2.05,
+        "rooms": [
+          "bathroom",
+          "primary_bedroom"
+        ]
+      },
+      {
+        "id": "door_9",
+        "kind": "door",
+        "at": [
+          7.2,
+          7.5
+        ],
+        "width": 1,
+        "height": 2.05,
+        "rooms": [
+          "hall",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_10",
+        "kind": "window",
+        "at": [
+          2.5,
+          0
+        ],
+        "width": 3,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "living",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_11",
+        "kind": "window",
+        "at": [
+          0,
+          2.3
+        ],
+        "width": 1.2,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "living",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_12",
+        "kind": "window",
+        "at": [
+          4,
+          7.5
+        ],
+        "width": 3,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "primary_bedroom",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_13",
+        "kind": "window",
+        "at": [
+          1,
+          7.5
+        ],
+        "width": 1.5,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "bathroom",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_14",
+        "kind": "window",
+        "at": [
+          9.8,
+          0
+        ],
+        "width": 1.5,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "bedroom_2",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_15",
+        "kind": "window",
+        "at": [
+          11,
+          2
+        ],
+        "width": 1.2,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "bedroom_2",
+          "outside"
+        ]
+      }
+    ],
+    "source": {
+      "kind": "upload",
+      "notes": [
+        "living is open to the kitchen (no door drawn)",
+        "living is open to the hall",
+        "kitchen opens to hall",
+        "dimensions estimated from the plan proportions, labels only partly applied"
+      ],
+      "confidence": 0.6
+    }
+  }
+}

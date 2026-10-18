@@ -4,12 +4,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { pointInPolygon } from '../shared/plan/poly.ts'
-import { TWO_BED_APARTMENT as P, SAMPLES } from '../shared/plan/samples.ts'
+import { TWO_BED_APARTMENT as P, TWO_BED_APARTMENT, SAMPLES } from '../shared/plan/samples.ts'
+import { windowsOf } from '../shared/plan/geometry.ts'
 import { KIT } from '../shared/home/kinds.ts'
 import { itemLayer, overlapArea } from '../shared/home/layout.ts'
 import { parseOps } from '../shared/home/ops.ts'
 import { itemCorners, itemFootprint } from '../shared/home/select.ts'
-import { applyBatch, applyOp, createHome, diffItems, exportHome, extendLastBatch, honestSay, importHome, replayLog, undo } from '../shared/home/state.ts'
+import { applyBatch, applyOp, createHome, defaultContext, diffItems, exportHome, extendLastBatch, honestSay, importHome, replayLog, undo } from '../shared/home/state.ts'
 import type { HomeState, Item, OpContext } from '../shared/home/types.ts'
 
 const room = (id: string) => P.rooms.find(r => r.id === id)!
@@ -191,7 +192,8 @@ test('move re-resolves the spot and keeps the facing rules; remove and restyle',
   const before = byKind(s, 'sofa')[0]!
   const moved = run(s, [{ op: 'move', target: { kind: 'sofa' }, at: { room: 'living', where: 'window' } }])
   const sofa = byKind(moved.state, 'sofa')[0]!
-  assert.deepEqual(moved.effects.moved, [before.id])
+  // The rug, coffee table and armchair were placed by the sofa, so they come along; the TV stand across the room does not.
+  assert.deepEqual(moved.effects.moved, [before.id, 'rug#1', 'coffee_table#1', 'armchair#1'])
   // The TV stand already sits under the north window, so the west window is the one that is free.
   assert.ok(sofa.pos[0] < 0.6 && Math.abs(sofa.pos[1] - 2.25) < 0.3, `under the west window (${sofa.pos})`)
   assert.ok(Math.abs(sofa.yaw - Math.PI / 2) < 0.01, 'back to the window wall, front into the room')
@@ -284,4 +286,187 @@ test('honestSay: a half-done sentence carries the op note; furnish skips stay qu
   assert.equal(honestSay('Bedroom 2, calm.', true, ['Bedroom 2: no room to the left of the bed for the nightstand']), 'Bedroom 2, calm.')
   assert.equal(honestSay('Only one fit.', true, ['only room for 1 of 2 nightstands']), 'Only one fit.')
   assert.equal(honestSay('Sofa moved.', false, ['move: nothing matches sofa']), 'I couldn\'t: nothing matches sofa.')
+})
+
+// ---------- group moves and swaps ----------
+// Scenes are built from ops, not from furnish, so these hold however the starter layouts change.
+
+const bedroomCtx = (seed = 7) => ctx({ gaze: { point: [4, 6], room: 'primary' }, player: { pos: [4, 6.5], yaw: 0, room: 'primary' }, seed })
+const sameYaw = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) < 0.01
+
+/** Is `a` resting on `b` (centre over its footprint, bottom on its top)? */
+function sitsOn(a: Item, b: Item): boolean {
+  return pointInPolygon(a.pos, itemCorners(b), 0.01) && Math.abs((a.y ?? 0) - ((b.y ?? 0) + itemFootprint(b).height)) < 0.02
+}
+
+/** `p` in `a`'s frame: [along its length, toward its front]. */
+function local(a: Item, p: [number, number]): [number, number] {
+  const dx = p[0] - a.pos[0]
+  const dz = p[1] - a.pos[1]
+  return [dx * Math.cos(a.yaw) - dz * Math.sin(a.yaw), dx * Math.sin(a.yaw) + dz * Math.cos(a.yaw)]
+}
+
+/** A primary bedroom set from sentences: bed on the north wall, a nightstand each side with a lamp on it, a picture over the bed. */
+function bedroomSet(): HomeState {
+  let s = createHome(P)
+  s = run(s, [{ op: 'place', kind: 'bed', at: { room: 'primary', where: 'wall', wall: 'north' } }], bedroomCtx(1)).state
+  s = run(s, [
+    { op: 'place', kind: 'nightstand', at: { room: 'primary', where: 'near', of: { kind: 'bed' }, side: 'left' } },
+    { op: 'place', kind: 'nightstand', at: { room: 'primary', where: 'near', of: { kind: 'bed' }, side: 'right' } }
+  ], bedroomCtx(2)).state
+  s = run(s, [{ op: 'place', kind: 'table_lamp', count: 2, at: { room: 'primary', where: 'near', of: { kind: 'nightstand' }, side: 'on' } }], bedroomCtx(3)).state
+  return run(s, [{ op: 'place', kind: 'picture', at: { room: 'primary', where: 'near', of: { kind: 'bed' }, side: 'behind' } }], bedroomCtx(4)).state
+}
+
+/** "Move the bed to the other wall": the first wall the layout lets it go to. */
+function moveBedAway(s: HomeState, seed = 5) {
+  for (const wall of ['south', 'east', 'west'] as const) {
+    const res = run(s, [{ op: 'move', target: { kind: 'bed', room: 'primary' }, at: { room: 'primary', where: 'wall', wall } }], bedroomCtx(seed))
+    if (res.effects.moved.includes('bed#1')) return res
+  }
+  assert.fail('the bed fits no other wall of the primary bedroom')
+}
+
+test('moving the bed to the other wall carries its nightstands, lamps and picture, all inside the room', () => {
+  const home = bedroomSet()
+  assert.equal(home.items.filter(i => i.anchor?.id === 'bed#1').length, 3, 'two nightstands and the picture belong to the bed')
+  assert.equal(home.items.filter(i => i.kind === 'table_lamp' && i.anchor?.id.startsWith('nightstand#')).length, 2, 'each lamp belongs to its nightstand')
+  const res = moveBedAway(home)
+  const s = res.state
+  const bed0 = home.items.find(i => i.id === 'bed#1')!
+  const bed = s.items.find(i => i.id === 'bed#1')!
+  assert.ok(Math.hypot(bed.pos[0] - bed0.pos[0], bed.pos[1] - bed0.pos[1]) > 0.5 && !sameYaw(bed.yaw, bed0.yaw), `the bed really moved (${bed0.pos} → ${bed.pos})`)
+  const fb = itemFootprint(bed)
+  const stands = byKind(s, 'nightstand')
+  assert.equal(stands.length, 2)
+  for (const n of stands) {
+    const [x, z] = local(bed, n.pos)
+    assert.equal(n.anchor?.id, bed.id, `${n.id} still belongs to the bed`)
+    assert.ok(sameYaw(n.yaw, bed.yaw), `${n.id} turned with the bed`)
+    assert.ok(Math.abs(x) > fb.length / 2 && Math.abs(x) < fb.length / 2 + 1.2, `${n.id} beside the bed (${x.toFixed(2)} along it)`)
+    assert.ok(z < -fb.width / 2 + 0.6, `${n.id} at the head end, on the bed's new wall (${z.toFixed(2)})`)
+    assert.ok(res.effects.moved.includes(n.id))
+  }
+  for (const l of byKind(s, 'table_lamp')) {
+    assert.ok(stands.some(n => sitsOn(l, n)), `${l.id} on a nightstand (${l.pos}, y ${l.y})`)
+    assert.ok(res.effects.moved.includes(l.id))
+  }
+  // Over the headboard when that wall is blank; the south wall's window sits there, so it slides along the same wall.
+  const pic = byKind(s, 'picture')[0]!
+  const [px, pz] = local(bed, pic.pos)
+  const onHeadWall = pz < -fb.width / 2 + 0.1
+  const r = room('primary')
+  const onGlass = windowsOf(s.plan, r).some(w => Math.abs((pic.pos[0] - w.at[0]) * w.inward[0] + (pic.pos[1] - w.at[1]) * w.inward[1]) < 0.4
+    && Math.abs((pic.pos[0] - w.at[0]) * w.inward[1] - (pic.pos[1] - w.at[1]) * w.inward[0]) < w.width / 2 + 0.3)
+  assert.ok(!onGlass, `picture not on a window (${pic.pos})`)
+  assert.ok(onHeadWall || res.effects.notes.some(n => /picture/.test(n)), `picture on the headboard wall or an honest note (${px.toFixed(2)}, ${pz.toFixed(2)})`)
+  for (const i of s.items) assert.ok(itemCorners(i).every(c => pointInPolygon(c, r.polygon, 0.03)), `${i.id} inside`)
+  const worst = worstOverlap(floorPieces(s.items))
+  assert.ok(worst.ratio <= 0.05, `${worst.pair} overlap ${(worst.ratio * 100).toFixed(1)}%`)
+})
+
+/** A living room set from sentences: sofa on the south wall, a coffee table in front, an armchair to one side. */
+function livingSet(): HomeState {
+  let s = createHome(P)
+  s = run(s, [{ op: 'place', kind: 'sofa', at: { room: 'living', where: 'wall', wall: 'south' } }], ctx({ seed: 1 })).state
+  return run(s, [
+    { op: 'place', kind: 'coffee_table', at: { room: 'living', where: 'near', of: { kind: 'sofa' }, side: 'front', dist: 0.5 } },
+    { op: 'place', kind: 'armchair', at: { room: 'living', where: 'near', of: { kind: 'sofa' }, side: 'left', dist: 0.4 } }
+  ], ctx({ seed: 2 })).state
+}
+
+test('remove the sofa and place a sectional in one sentence: the sectional takes the sofa’s spot and keeps its company', () => {
+  const home = livingSet()
+  const sofa = byKind(home, 'sofa')[0]!
+  const res = run(home, [{ op: 'remove', target: { kind: 'sofa' } }, { op: 'place', kind: 'sectional', at: { room: 'living' } }])
+  const sec = byKind(res.state, 'sectional')[0]!
+  assert.ok(sec)
+  assert.deepEqual(res.effects.notes, [])
+  assert.ok(sameYaw(sec.yaw, sofa.yaw), 'same facing')
+  // The sectional is 0.9 m deeper than the sofa: its back stays on the sofa's wall, so the centre moves half that into the room.
+  const [x, z] = local(sofa, sec.pos)
+  assert.ok(Math.abs(x) < 0.3, `same place along the wall (${x.toFixed(2)})`)
+  assert.ok(Math.abs(z - 0.45) < 0.05, `back edge where the sofa's was (${z.toFixed(2)})`)
+  for (const id of ['coffee_table#1', 'armchair#1']) {
+    assert.equal(res.state.items.find(i => i.id === id)!.anchor?.id, sec.id, `${id} re-anchored`)
+    assert.ok(res.effects.moved.includes(id), `${id} made room for the deeper piece`)
+  }
+  assert.ok(worstOverlap(floorPieces(res.state.items)).ratio <= 0.05)
+  // Streamed in as a later op of the same sentence it does the same.
+  const first = run(home, [{ op: 'remove', target: { kind: 'sofa' } }])
+  const ext = extendLastBatch(first.state, first.batch!.id, 1, [{ op: 'place', kind: 'sectional' }])!
+  assert.deepEqual(byKind(ext.state, 'sectional')[0]!.pos, sec.pos)
+  assert.deepEqual(replayLog(P, ext.state.log).items, ext.state.items)
+  // A later sentence is not a swap.
+  const later = run(first.state, [{ op: 'place', kind: 'sectional', at: { room: 'living' } }])
+  assert.ok(!byKind(later.state, 'sectional')[0]?.pos.every((v, i) => v === sec.pos[i]))
+})
+
+test('a king bed replacing the bed keeps its nightstands and lamps anchored', () => {
+  const home = bedroomSet()
+  const bed = byKind(home, 'bed')[0]!
+  const res = run(home, [{ op: 'remove', target: { kind: 'bed', room: 'primary' } }, { op: 'place', kind: 'king_bed' }], bedroomCtx())
+  const king = byKind(res.state, 'king_bed')[0]!
+  assert.ok(king && Math.hypot(king.pos[0] - bed.pos[0], king.pos[1] - bed.pos[1]) < 0.1, `king in the bed's spot (${king?.pos})`)
+  const stands = byKind(res.state, 'nightstand')
+  assert.equal(stands.length, 2)
+  for (const n of stands) assert.equal(n.anchor?.id, king.id, `${n.id} anchored to the king bed`)
+  assert.equal(byKind(res.state, 'picture')[0]!.anchor?.id, king.id)
+  const worst = worstOverlap(floorPieces(res.state.items))
+  assert.ok(worst.ratio <= 0.05, `the wider bed pushed its nightstands out (${worst.pair})`)
+  for (const l of byKind(res.state, 'table_lamp')) assert.ok(stands.some(n => sitsOn(l, n)), `${l.id} still on its nightstand`)
+  // A longer king pushes them out again rather than swallowing them.
+  const bigger = run(res.state, [{ op: 'restyle', target: { kind: 'king_bed' }, set: { length: 2.1 } }], bedroomCtx(8))
+  const w = worstOverlap(floorPieces(bigger.state.items))
+  assert.ok(w.ratio <= 0.05, `restyle carried the nightstands (${w.pair})`)
+  assert.ok(stands.every(n => bigger.effects.moved.includes(n.id)))
+})
+
+test('a nightstand moved on its own stops following the bed; removing an anchor frees its dependants', () => {
+  let s = bedroomSet()
+  // Into the other bedroom, so it can't be what stops the bed moving.
+  s = run(s, [{ op: 'move', target: { kind: 'nightstand', room: 'primary', limit: 1, near: 'gaze' }, at: { room: 'bedroom_2', where: 'wall' } }], bedroomCtx(3)).state
+  const loose = byKind(s, 'nightstand').filter(i => !i.anchor)
+  assert.equal(loose.length, 1, 'the moved one lost its anchor')
+  const before = loose[0]!
+  const res = moveBedAway(s, 4)
+  const after = res.state.items.find(i => i.id === before.id)!
+  assert.deepEqual([after.pos, after.yaw], [before.pos, before.yaw], 'stayed put')
+  assert.ok(!res.effects.moved.includes(before.id))
+  assert.ok(byKind(res.state, 'nightstand').some(n => n.anchor?.id === 'bed#1' && res.effects.moved.includes(n.id)), 'the other one still follows')
+  const gone = run(res.state, [{ op: 'remove', target: { kind: 'bed', room: 'primary' } }], bedroomCtx(5))
+  assert.ok(gone.state.items.every(i => i.anchor?.id !== 'bed#1'), 'no one points at the removed bed')
+  assert.deepEqual(gone.effects.moved, [], 'its nightstands stay where they are')
+})
+
+test('replay of the export equals the state after group moves and swaps', () => {
+  let s = bedroomSet()
+  s = moveBedAway(s, 1).state
+  s = run(s, [{ op: 'place', kind: 'sofa', at: { room: 'living', where: 'wall', wall: 'south' } }, { op: 'place', kind: 'coffee_table', at: { room: 'living', where: 'near', of: { kind: 'sofa' }, side: 'front' } }], ctx({ seed: 2 })).state
+  s = run(s, [{ op: 'remove', target: { kind: 'sofa' } }, { op: 'place', kind: 'sectional' }], ctx({ seed: 3 })).state
+  s = run(s, [{ op: 'remove', target: { kind: 'bed', room: 'primary' } }, { op: 'place', kind: 'king_bed' }], bedroomCtx(4)).state
+  s = run(s, [{ op: 'move', target: { kind: 'nightstand', room: 'primary', limit: 1, near: 'gaze' }, at: { room: 'primary', where: 'corner' } }], bedroomCtx(5)).state
+  s = run(s, [{ op: 'restyle', target: { kind: 'king_bed' }, set: { scale: 1.1 } }], bedroomCtx(6)).state
+  s = run(s, [{ op: 'move', target: { kind: 'sectional' }, at: { room: 'living', where: 'window' } }], ctx({ seed: 7 })).state
+  assert.ok(s.items.some(i => i.anchor), 'anchors survive')
+  const loaded = importHome(JSON.parse(JSON.stringify(exportHome(s))))!
+  assert.deepEqual(loaded.items, s.items)
+  assert.deepEqual(replayLog(P, s.log).items, s.items)
+})
+
+test('a picture carried with its bed never lands on a window', () => {
+  const ctx = defaultContext(TWO_BED_APARTMENT)
+  let s = createHome(TWO_BED_APARTMENT)
+  s = applyBatch(s, { ops: [
+    { op: 'place', kind: 'bed', at: { room: 'primary', where: 'wall', wall: 'north' } },
+    { op: 'place', kind: 'picture', at: { room: 'primary', where: 'near', of: { kind: 'bed', room: 'primary' }, side: 'behind' } }
+  ] }, 'bed + picture', ctx).state
+  s = applyBatch(s, { ops: [{ op: 'move', target: { kind: 'bed', room: 'primary' }, at: { room: 'primary', where: 'wall', wall: 'south' } }] }, 'bed to the window wall', ctx).state
+  const pic = s.items.find(i => i.kind === 'picture')
+  assert.ok(pic, 'the picture is still there')
+  for (const w of windowsOf(s.plan, s.plan.rooms.find(r => r.id === 'primary')!)) {
+    const along = Math.abs((pic!.pos[0] - w.at[0]) * w.inward[1] - (pic!.pos[1] - w.at[1]) * w.inward[0])
+    const off = Math.abs((pic!.pos[0] - w.at[0]) * w.inward[0] + (pic!.pos[1] - w.at[1]) * w.inward[1])
+    assert.ok(!(off < 0.4 && along < w.width / 2 + 0.3), `picture at ${pic!.pos} sits on the window at ${w.at}`)
+  }
 })

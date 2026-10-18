@@ -139,3 +139,15 @@ test('a partial or empty posted scene still builds a block', () => {
   assert.equal(partial.items.length, 0)
   assert.equal(partial.rooms[0]!.id, 'den')
 })
+
+test('an open-plan boundary reads "open to kitchen", not a doorway, on both sides', () => {
+  // Widen the sample's 1.8 m living/kitchen opening to the whole 3 m shared wall: one continuous space.
+  const s = home()
+  const plan = { ...TWO_BED_APARTMENT, openings: TWO_BED_APARTMENT.openings.map(o => (o.id === 'opening_3' ? { ...o, width: 3 } : o)) }
+  const scene = trimScene({ ...s, plan })
+  assert.deepEqual(scene.rooms.find(r => r.id === 'living')!.doors.find(d => d.to === 'kitchen'), { to: 'kitchen', wall: 'east', kind: 'opening', open: true })
+  const block = buildContext(scene, ctx())
+  assert.match(block, /^rooms \(id: name size, windows, open to, doors →\):$/m)
+  assert.match(block, /^- living: Living room 5\.5×4\.5 m, windows north\+west, open to kitchen, doors → hall$/m)
+  assert.match(block, /^- kitchen: Kitchen 3×3 m, windows north, open to living, doors → hall$/m)
+})

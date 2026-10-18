@@ -4,7 +4,8 @@ import type { Vec2 } from '../../plan/poly.ts'
 import type { Arrangement, Side } from '../ops.ts'
 import { itemFootprint } from '../select.ts'
 import { applyFacing, faceToward, frontOf, normYaw, sideOf, yawFacing } from './facing.ts'
-import { MAX_TRIES, finish, firstFit, fits, toBlocker } from './fit.ts'
+import { finish, firstFit, fits, toBlocker } from './fit.ts'
+import { livability, pick, scored } from './score.ts'
 import { candidates, nearCands, nudged } from './spots.ts'
 import type { Blocker, Cand, Place, Site } from './types.ts'
 
@@ -23,9 +24,7 @@ function defaultArrange(where: Place, side: Side | undefined): Arr {
 function row(site: Site, where: Place, side: Side | undefined, n: number, gap = ROW_GAP): Cand[] {
   const L = site.fp.length
   const span = n * L + (n - 1) * gap
-  let tries = 0
-  for (const c of candidates(site, where, side, span)) {
-    if (++tries > MAX_TRIES) break
+  const line = (c: Cand): Cand[] | null => {
     const base = finish(site, c)
     const axis = sideOf(base.yaw)
     const group: Cand[] = []
@@ -33,13 +32,15 @@ function row(site: Site, where: Place, side: Side | undefined, n: number, gap = 
     for (let i = 0; i < n; i++) {
       const p: Cand = { ...base, pos: add(base.pos, axis, (i - (n - 1) / 2) * (L + gap)), pinned: true }
       const f = fits(site, p, extra)
-      if (!f) break
+      if (!f) return null
       group.push(f)
       extra.push(toBlocker(site, f))
     }
-    if (group.length === n) return group
+    return group
   }
-  return each(site, where, side, n)
+  // A row is scored by its middle: the wall it is on and how far it keeps from the walking lanes.
+  const score = scored(site, where) ? (g: Cand[]) => livability(site, g[Math.floor(g.length / 2)]!) : undefined
+  return pick(site, candidates(site, where, side, span), line, score) ?? each(site, where, side, n)
 }
 
 /** One at a time, each avoiding the ones before: as many as the room takes. */
@@ -50,7 +51,8 @@ function each(site: Site, where: Place, side: Side | undefined, n: number): Cand
   for (let i = 0; out.length < n && i < n + site.anchors.length; i++) {
     const anchor = site.anchors[i % Math.max(1, site.anchors.length)]
     const forAnchor = anchor && anchor !== site.anchor ? { ...site, anchor } : site
-    const f = firstFit(forAnchor, candidates(forAnchor, where, side, site.fp.length), extra)
+    const score = scored(forAnchor, where) ? (c: Cand) => livability(forAnchor, c, extra) : undefined
+    const f = pick(forAnchor, candidates(forAnchor, where, side, site.fp.length), c => fits(forAnchor, finish(forAnchor, c), extra), score)
     if (!f) {
       if (site.anchors.length > 1) continue
       break

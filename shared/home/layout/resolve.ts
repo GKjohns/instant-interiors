@@ -6,7 +6,7 @@
 import { add, compassOf, dist, distToPolygonEdge, pointInPolygon, yawToward } from '../../plan/poly.ts'
 import type { Vec2 } from '../../plan/poly.ts'
 import type { FloorPlan, Room } from '../../plan/schema.ts'
-import { DOOR_HEAD, cornersOf, doorsOf, roomAt, roomCenter, wallSegmentsOf, windowsOf } from '../../plan/geometry.ts'
+import { DOOR_HEAD, cornersOf, corridors, doorsOf, roomAt, roomCenter, wallSegmentsOf, windowsOf } from '../../plan/geometry.ts'
 import { hashSeed, rng, round3 } from '../../math.ts'
 import type { KindDescriptor } from '../kinds.ts'
 import type { Selector, Side, Spot } from '../ops.ts'
@@ -14,7 +14,9 @@ import { boxCorners, footprintOf, hereRoom, itemFootprint, kindOfItem, resolveRo
 import type { HomeState, Item, OpContext } from '../types.ts'
 import { group } from './arrange.ts'
 import { frontOf, yawFacing } from './facing.ts'
-import { blockerOf, firstFit, layerOf } from './fit.ts'
+import { topWhy } from './clear.ts'
+import { blockerOf, finish, fits, layerOf } from './fit.ts'
+import { livability, pick, scored } from './score.ts'
 import { candidates } from './spots.ts'
 import type { Cand, LayoutOpts, LayoutResult, Place, Placed, Site } from './types.ts'
 
@@ -28,6 +30,8 @@ export function resolveSpot(state: HomeState, spot: Spot | undefined, kind: Kind
   if (spot?.of && !anchors.length) return withoutAnchor(state, spot, spot.of, kind, ctx, opts)
   const room = roomFor(state, spot, ctx, anchors[0])
   if (!room) return { fail: spot?.room ? `I don't know a room called “${spot.room}”` : 'no room to put it in' }
+  const dup = secondMainSeat(state, room, kind, opts)
+  if (dup) return { fail: dup }
   const site = makeSite(state, room, kind, spot, ctx, opts, anchors, rand)
   const where = whereOf(spot, kind, site.anchor)
   const side = spot?.side ?? (where === 'near' ? 'beside' : undefined)
@@ -39,8 +43,23 @@ export function resolveSpot(state: HomeState, spot: Spot | undefined, kind: Kind
   return elsewhereInRoom(site, spot, where, side, n) ?? { fail: failMessage(site, where, side) }
 }
 
+/** The pieces a living room is arranged round; two from one sentence is a duplicate, not a design. */
+const MAIN_SEATS = new Set(['sofa', 'sectional', 'loveseat'])
+
+/**
+ * "A sofa facing the TV" sometimes arrives as two place ops: one sentence gets one main seat per room unless
+ * it asked for a count ("two sofas" is count 2). Items this batch placed carry its group, g<nextGroup>.
+ */
+function secondMainSeat(state: HomeState, room: Room, kind: KindDescriptor, opts: LayoutOpts): string | null {
+  if (!MAIN_SEATS.has(kind.kind) || opts.count > 1) return null
+  const group = `g${state.nextGroup}`
+  const twin = opts.existing.find(i => i.room === room.id && i.group === group && MAIN_SEATS.has(i.kind))
+  return twin ? `the ${roomPhrase(room)} already got a ${kindOfItem(twin)?.label ?? twin.kind} from this sentence; one main seat per room unless you ask for more` : null
+}
+
 function single(site: Site, where: Place, side: Side | undefined): Cand[] {
-  const c = firstFit(site, candidates(site, where, side, site.fp.length), [])
+  const score = scored(site, where) ? (f: Cand) => livability(site, f) : undefined
+  const c = pick(site, candidates(site, where, side, site.fp.length), c => fits(site, finish(site, c), []), score)
   return c ? [c] : []
 }
 
@@ -68,15 +87,16 @@ function withoutAnchor(state: HomeState, spot: Spot, of: Selector, kind: KindDes
 function elsewhereInRoom(site: Site, spot: Spot | undefined, where: Place, side: Side | undefined, n: number): LayoutResult | null {
   const kind = site.kind
   const natural = kind.place === 'wall' || kind.place === 'corner'
-  const asked = where === 'near' || (where === 'wall' && !!spot?.wall)
+  // A named wall or corner that is full or would block a door path: same room, best other spot, with a note.
+  const asked = where === 'near' || ((where === 'wall' || where === 'corner') && !!spot?.wall)
   if (!asked || !natural || layerOf(kind) !== 'floor' || site.anchor?.tags.includes('bed')) return null
-  const loose: Site = { ...site, spot: spot?.room ? { room: spot.room } : undefined }
+  const why = failMessage(site, where, side)
+  const loose: Site = { ...site, spot: spot?.room ? { room: spot.room } : undefined, why: new Map() }
   for (const alt of kind.place === 'corner' ? ['corner', 'wall'] as const : ['wall', 'corner'] as const) {
     const got = n === 1 ? single(loose, alt, undefined) : group(loose, alt, undefined, n, undefined)
     if (!got.length) continue
     const f = frontOf(got[0]!.yaw)
-    const at = alt === 'wall' ? `on the ${compassOf([-f[0], -f[1]])} wall` : 'in a corner'
-    const why = failMessage(site, where, side)
+    const at = alt === 'wall' ? `on the ${compassOf([-f[0], -f[1]])} wall` : where === 'corner' ? 'in another corner' : 'in a corner'
     return Object.assign(toPlaced(got), { note: `put the ${kind.label} ${at} instead (${why})`, why })
   }
   return null
@@ -94,7 +114,8 @@ function makeSite(state: HomeState, room: Room, kind: KindDescriptor, spot: Spot
     const w = windowsOf(state.plan, room).find(x => x.side === spot?.wall) ?? windowsOf(state.plan, room)[0]
     if (w) fp = { ...fp, length: w.width + 0.4 }
   }
-  const blockers = opts.existing.filter(i => i.room === room.id).map(blockerOf)
+  const standing = new Set(opts.existing.map(i => i.id))
+  const blockers = opts.existing.filter(i => i.room === room.id).map(i => (i.anchor && !standing.has(i.anchor.id) ? { ...blockerOf(i), follows: true } : blockerOf(i)))
   for (const d of doorsOf(state.plan, room)) {
     if (d.kind !== 'door') continue
     const c = add(d.at, d.inward, d.width / 2)
@@ -122,7 +143,9 @@ function makeSite(state: HomeState, room: Room, kind: KindDescriptor, spot: Spot
     anchors,
     blockers,
     rand,
-    ceiling: state.plan.ceiling
+    ceiling: state.plan.ceiling,
+    corridors: corridors(state.plan, room),
+    why: new Map()
   }
 }
 
@@ -172,6 +195,12 @@ export function describeSel(sel: Selector): string {
 function failMessage(site: Site, where: Place, side: Side | undefined): string {
   const what = site.kind.label
   const room = roomPhrase(site.room)
+  // Turned away for circulation rather than space: say what it would have blocked.
+  const why = topWhy(site)
+  if (why) {
+    const there = where === 'corner' && site.spot?.wall ? 'in that corner' : where === 'wall' && site.spot?.wall ? `on the ${site.spot.wall} wall` : where === 'near' || where === 'gaze' || where === 'here' || where === 'door' || where === 'window' ? 'there' : ''
+    return there ? `the ${what} ${there} would ${why}` : `no spot for the ${what} in the ${room}: everywhere it fits would ${why}`
+  }
   switch (where) {
     case 'wall': return site.spot?.wall ? `no room for the ${what} on the ${site.spot.wall} wall of the ${room}` : `no free wall for the ${what} in the ${room}`
     case 'corner': return `no free corner for the ${what} in the ${room}`

@@ -43,6 +43,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="pointer-events-none absolute inset-0">
+    <HudPlanLabels />
     <HudRoomChip />
     <HudTopRight />
     <HudWhisper />

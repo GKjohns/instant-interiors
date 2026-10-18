@@ -1,6 +1,6 @@
 import type { Vec2 } from '../../plan/poly.ts'
 import type { FloorPlan, Room } from '../../plan/schema.ts'
-import type { RoomCorner, RoomOpening, RoomWall } from '../../plan/geometry.ts'
+import type { Corridor, RoomCorner, RoomOpening, RoomWall } from '../../plan/geometry.ts'
 import type { KindDescriptor } from '../kinds.ts'
 import type { Arrangement, Props, Spot, Where } from '../ops.ts'
 import type { Footprint } from '../select.ts'
@@ -36,6 +36,23 @@ export interface Blocker {
   layer: Layer
   y: number
   top: number
+  /** The catalog kind behind it (absent for door swings and the viewer): circulation rules differ per kind. */
+  kind?: string
+  /** The space this piece needs kept clear (a sofa's legroom, a bed's open side), see clear.ts. */
+  clear?: Clearance | null
+  /** Anchored to a piece that is not standing (being moved or swapped): it follows that piece, so it never shuts a walking lane. */
+  follows?: boolean
+}
+
+/** Space a piece needs around it to be usable; other pieces keep out of it unless `exempt` lets them in. */
+export interface Clearance {
+  /** What it is, for notes: "the sofa's legroom". */
+  label: string
+  zones: Vec2[][]
+  /** 'all': every zone must stay clear; 'any': at least one (a bed needs one long side open, prefers both). */
+  need: 'all' | 'any'
+  /** Kinds that belong in the zone: the coffee table in front of the sofa, chairs round the table. */
+  exempt: (kind: KindDescriptor) => boolean
 }
 
 export interface Cand extends Placed {
@@ -43,6 +60,11 @@ export interface Cand extends Placed {
   pinned?: boolean
   /** The room's own middle: may land where the viewer stands (they step back), see centerCands. */
   middle?: boolean
+  /** Which room wall / corner the candidate stands against, for livability scoring (score.ts). */
+  wall?: number
+  corner?: number
+  /** Candidates sharing a slot (one wall stretch, one corner) are alternatives; scoring takes the first fit per slot. */
+  slot?: string
 }
 
 /** Everything one placement is resolved against: the room, the piece, its anchors and what is already there. */
@@ -66,6 +88,10 @@ export interface Site {
   blockers: Blocker[]
   rand: () => number
   ceiling: number
+  /** Where people walk (shared/plan/geometry/circulation.ts): floor pieces keep out. */
+  corridors: Corridor[]
+  /** Why candidates were turned away for circulation, counted, so a failure can say "would block the way…". Shared by copies of the site. */
+  why: Map<string, number>
 }
 
 export type Place = Where | 'free'

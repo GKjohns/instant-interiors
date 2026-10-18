@@ -221,11 +221,21 @@ test('plans that already tile come through the weld unchanged (area snapshot)', 
   assert.ok(!(P.source?.notes ?? []).some(n => /thin gap/.test(n)))
 })
 
-test('connectRooms: a read that walls off the kitchen and drops a bedroom door gets a cased opening and a door; a sound plan is untouched', () => {
-  assert.deepEqual(connectRooms(P).added, [])
+test('connectRooms: only rooms with no way in get one, from the hall or living room, each with a note; a sound plan is untouched', () => {
+  assert.deepEqual(connectRooms(P), { plan: P, added: [], notes: [] })
+  // Kitchen, bedroom 2 and the bathroom lose every door and opening they had.
   const sealed = { ...P, openings: P.openings.filter(o => !['opening_3', 'opening_4', 'door_5', 'door_7'].includes(o.id)) }
-  const { plan, added } = connectRooms(sealed)
-  assert.ok(added.includes('opening living↔kitchen') || added.includes('opening kitchen↔living'), `${added}`)
+  const { plan, added, notes } = connectRooms(sealed)
+  assert.deepEqual(added, ['opening kitchen↔living', 'door bedroom_2↔hall', 'door bathroom↔living'])
+  // The kitchen beside the living room is opened along the whole shared wall: no invented wall with a hole in it.
+  const kl = walls(plan).find(w => w.rooms.includes('kitchen') && w.rooms.includes('living'))!
+  assert.equal(kl.open, true)
+  assert.deepEqual(kl.pieces, [])
+  assert.deepEqual(notes, [
+    'no opening was drawn into Kitchen; left it open to the living room',
+    'no door was drawn into Bedroom 2; added a door from the hall',
+    'no door was drawn into Bathroom; added a door from the living room'
+  ])
   const seen = new Set([entry(plan).room])
   const queue = [...seen]
   while (queue.length) {
@@ -238,9 +248,122 @@ test('connectRooms: a read that walls off the kitchen and drops a bedroom door g
     }
   }
   assert.deepEqual(plan.rooms.filter(r => !seen.has(r.id)).map(r => r.id), [], `added ${added}`)
-  // Bedroom 2 rejoins through the hall (it also touches the kitchen and the closet), the bathroom through a door.
-  assert.ok(added.some(a => /door (hall↔bedroom_2|bedroom_2↔hall)/.test(a)), `${added}`)
-  assert.ok(added.some(a => /door .*bathroom/.test(a)), `${added}`)
+})
+
+test('connectRooms leaves a room that has any opening alone, even when it is not the best-connected', () => {
+  // Bedroom 2 keeps only its door to the closet (no hall door): it has a way in, so nothing is invented.
+  const partial = { ...P, openings: P.openings.filter(o => o.id !== 'door_5') }
+  const bed2 = partial.rooms.find(r => r.id === 'bedroom_2')!
+  const withCloset = { ...partial, openings: [...partial.openings, { id: 'door_x', kind: 'door' as const, at: [9.75, 4.2] as [number, number], width: 0.8, height: 2.05, rooms: [bed2.id, 'closet'] as [string, string] }] }
+  assert.deepEqual(connectRooms(withCloset).added, [])
+})
+
+test('connectRooms: a suite with doors only among itself gets one link, from its hall; a sealed hall opens onto the living room', () => {
+  // Bedroom 2 → closet → (nothing): the closet's hall door is gone, so bedroom 2 and the closet are an island.
+  const island = { ...P, openings: P.openings.filter(o => !['door_5', 'door_8'].includes(o.id)) }
+  const bed2 = island.rooms.find(r => r.id === 'bedroom_2')!
+  const withCloset = { ...island, openings: [...island.openings, { id: 'door_x', kind: 'door' as const, at: [9.75, 4.2] as [number, number], width: 0.8, height: 2.05, rooms: [bed2.id, 'closet'] as [string, string] }] }
+  const { added, notes } = connectRooms(withCloset)
+  assert.equal(added.length, 1, `${added}`)
+  assert.match(notes[0]!, /^no way in from the rest of the home was drawn into (Bedroom 2|Closet); added a door from the (hall|kitchen)$/)
+  // A hall with no openings at all next to the living room: an open boundary, not a door.
+  const hallSealed = { ...P, openings: P.openings.filter(o => !o.rooms.includes('hall') || o.kind === 'window') }
+  const r = connectRooms(hallSealed)
+  assert.match(r.added[0]!, /^opening hall↔(living|kitchen)$/, `${r.added}`)
+  assert.match(r.notes[0]!, /^no opening was drawn into Hall; left it open to the (living room|kitchen)$/)
+  assert.ok(r.added.includes('door bedroom_2↔hall'), `then the bedroom joins the hall: ${r.added}`)
+})
+
+// ---------- open-plan boundaries ----------
+
+test('a cased opening spanning ≥ 85 % of its wall is open: no pieces, the derived opening spans the wall', () => {
+  const p = plan({
+    name: 'open plan',
+    units: 'm',
+    rooms: [
+      { id: 'living', name: 'Living', type: 'living', polygon: [[0, 0], [4, 0], [4, 5], [0, 5]] },
+      { id: 'kitchen', name: 'Kitchen', type: 'kitchen', polygon: [[0, 5], [4, 5], [4, 7.5], [0, 7.5]] },
+      { id: 'bed', name: 'Bedroom', type: 'bedroom', polygon: [[4, 0], [7, 0], [7, 5], [4, 5]] }
+    ],
+    openings: [
+      { kind: 'opening', at: [2, 5], width: 3.5, rooms: ['living', 'kitchen'] },
+      // 0.9 / 1.0 would be 90 %, but a door is a door: it keeps its wall and its leaf.
+      { kind: 'opening', at: [4, 2], width: 1.6, rooms: ['living', 'bed'] }
+    ]
+  })
+  const ws = walls(p)
+  const lk = ws.find(w => w.rooms.includes('living') && w.rooms.includes('kitchen'))!
+  assert.equal(lk.open, true)
+  assert.deepEqual(lk.pieces, [], 'no header, no stubs')
+  assert.deepEqual([lk.openings[0]!.open, lk.openings[0]!.width, lk.openings[0]!.along], [true, 4, 2])
+  const lb = ws.find(w => w.rooms.includes('living') && w.rooms.includes('bed'))!
+  assert.equal(lb.open, false, '1.6 m of a 5 m wall is a cased opening in a real wall')
+  assert.deepEqual(lb.pieces.map(x => x.kind), ['solid', 'door_header', 'solid'])
+  // Living's south edge has no free stretch left to back furniture onto.
+  const south = wallSegmentsOf(p, p.rooms.find(r => r.id === 'living')!).find(w => w.side === 'south')!
+  assert.deepEqual(south.free, [])
+})
+
+test('a full-width opening into a bedroom is a misread: it becomes a door where the reader put it, with a note', () => {
+  const r = normalizePlan({
+    name: 'wrong pair',
+    units: 'm',
+    rooms: [
+      { id: 'living', name: 'Living', type: 'living', polygon: [[0, 0], [4, 0], [4, 5], [0, 5]] },
+      { id: 'bedroom_2', name: 'Bedroom 2', type: 'bedroom', polygon: [[4, 0], [7, 0], [7, 3.2], [4, 3.2]] }
+    ],
+    openings: [{ kind: 'opening', at: [4, 1.6], width: 3.2, rooms: ['living', 'bedroom_2'] }]
+  })
+  assert.ok(r.ok)
+  assert.deepEqual(r.plan.openings.map(o => [o.kind, o.width, o.at]), [['door', 0.85, [4, 1.6]]])
+  assert.ok(walls(r.plan).every(w => !w.open))
+  assert.ok(r.notes.some(n => /left Bedroom 2 wide open to Living; made it a door/.test(n)), r.notes.join(' | '))
+  assert.ok(r.plan.source!.notes.some(n => /made it a door/.test(n)), 'the Plan panel sees it too')
+})
+
+test('doors and exterior openings are never open, however much of their wall they fill', () => {
+  const p = plan({
+    name: 'tight',
+    units: 'm',
+    rooms: [
+      { id: 'hall', name: 'Hall', type: 'hall', polygon: [[0, 0], [3, 0], [3, 1], [0, 1]] },
+      { id: 'wd', name: 'W/D', type: 'laundry', polygon: [[3, 0], [4, 0], [4, 1], [3, 1]] }
+    ],
+    openings: [
+      { kind: 'door', at: [3, 0.5], width: 0.95, rooms: ['hall', 'wd'] },
+      { kind: 'opening', at: [0, 0.5], width: 1, rooms: ['hall', 'outside'] }
+    ]
+  })
+  for (const w of walls(p)) {
+    assert.equal(w.open, false, w.id)
+    assert.ok(w.openings.every(o => !o.open))
+  }
+})
+
+test('normalizePlan clamps an opening to its wall: a cased opening wider than the wall becomes exactly the wall', () => {
+  const p = plan({
+    name: 'too wide',
+    units: 'ft',
+    rooms: [
+      { id: 'living', name: 'Living', type: 'living', polygon: [[0, 0], [12, 0], [12, 17], [0, 17]] },
+      { id: 'kitchen', name: 'Kitchen', type: 'kitchen', polygon: [[0, 17], [10, 17], [10, 25], [0, 25]] },
+      { id: 'bath', name: 'Bath', type: 'bathroom', polygon: [[10, 17], [12, 17], [12, 25], [10, 25]] }
+    ],
+    // The reader measured the living room's whole south side (12 ft), but the kitchen shares only 10 ft of it.
+    openings: [
+      { kind: 'opening', at: [6, 17], width: 12, rooms: ['living', 'kitchen'] },
+      { kind: 'door', at: [11, 17], width: 3, rooms: ['bath', 'living'] }
+    ]
+  })
+  // Vertices snap to 5 cm, so 10 ft of shared wall is 3.05 m.
+  const wall = walls(p).find(w => w.rooms.includes('kitchen') && w.rooms.includes('living'))!
+  assert.equal(wall.length, 3.05)
+  const lk = p.openings.find(o => o.rooms.includes('kitchen'))!
+  assert.equal(lk.width, 3.05)
+  assert.deepEqual(lk.at, [1.525, 5.2], 'centred on the shared wall, not the living room side')
+  assert.equal(wall.open, true)
+  const door = p.openings.find(o => o.kind === 'door')!
+  assert.equal(door.width, 0.6, 'the 3 ft door on a 2 ft wall is clamped to the wall')
 })
 
 test('a front door read onto a corner still lands you inside the room it opens into, not in the partition', () => {

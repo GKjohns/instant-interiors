@@ -33,6 +33,8 @@ const RADIUS = 0.3
 const SPEED = 2.2
 const RUN = 2.2
 const TURN = 0.004
+/** Screen pixels the plan view keeps clear at the bottom for the HUD bar, so the whole plan sits above it. */
+const PLAN_BOTTOM = 140
 /** A kind the catalog no longer knows still gets a box so the log replays without holes. */
 const UNKNOWN: KindDescriptor = { kind: 'box', label: 'box', footprint: [0.5, 0.5], height: 0.5, place: 'free', face: 'none', tags: ['decor'], rooms: [], color: '#b08968' }
 
@@ -321,7 +323,20 @@ export class HomeRenderer {
       this.orbit.target = this.bounds.center
       this.orbit.dist = this.fitDistance()
     }
+    this.applyOffset()
     this.applyMode()
+  }
+
+  /**
+   * In plan view the picture is shifted up by half the bar margin (a view offset, so the orbit still turns
+   * about the plan's middle and toScreen / the pointer ray stay exact); walking uses the whole screen.
+   */
+  private applyOffset(): void {
+    const el = this.renderer.domElement
+    const w = el.clientWidth || this.host.clientWidth
+    const h = el.clientHeight || this.host.clientHeight
+    if (this.mode === 'plan' && w && h) this.camera.setViewOffset(w, h, 0, Math.min(PLAN_BOTTOM, h * 0.25) / 2, w, h)
+    else this.camera.clearViewOffset()
   }
 
   private applyMode(): void {
@@ -333,7 +348,10 @@ export class HomeRenderer {
 
   private fitDistance(): number {
     const aspect = this.camera.aspect || 1.6
-    const need = Math.max(this.bounds.size[0] / aspect, this.bounds.size[1]) / 2 + 1.5
+    // Height is what's left above the bar margin: fit the plan's depth into that share of the screen.
+    const h = this.renderer.domElement.clientHeight || this.host.clientHeight || 800
+    const room = (h - Math.min(PLAN_BOTTOM, h * 0.25)) / h
+    const need = Math.max(this.bounds.size[0] / 2 / aspect, this.bounds.size[1] / 2 / room) + 1.5
     return THREE.MathUtils.clamp(need / Math.tan((this.camera.fov * Math.PI) / 360) * 1.1, 3, 60)
   }
 
@@ -468,6 +486,13 @@ export class HomeRenderer {
     this.haloTarget = point ? 0.75 : 0
   }
 
+  /** Where the pointer hovers in CSS pixels of the canvas (plan view's hover tag); null when it is off the canvas. */
+  pointerScreen(): { x: number, y: number } | null {
+    if (!this.pointerNdc) return null
+    const el = this.renderer.domElement
+    return { x: (this.pointerNdc[0] * 0.5 + 0.5) * el.clientWidth, y: (-this.pointerNdc[1] * 0.5 + 0.5) * el.clientHeight }
+  }
+
   toScreen(p: Vec2, y = 0): { x: number, y: number, visible: boolean } {
     const v = new THREE.Vector3(p[0], y, p[1]).project(this.camera)
     const el = this.renderer.domElement
@@ -553,6 +578,7 @@ export class HomeRenderer {
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(w, h)
+    this.applyOffset()
   }
 
   dispose(): void {

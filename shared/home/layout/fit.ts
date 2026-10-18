@@ -3,11 +3,13 @@
  * it would really clash with. Rugs go under things and hung pieces only clash with what reaches them, so
  * "overlap" is per layer.
  */
-import { EPS, add, area, dist, pointInPolygon, signedArea } from '../../plan/poly.ts'
+import { EPS, add, dist, pointInPolygon } from '../../plan/poly.ts'
+import { sharedArea } from '../../plan/geometry.ts'
 import type { Vec2 } from '../../plan/poly.ts'
 import type { KindDescriptor } from '../kinds.ts'
 import { boxCorners, itemCorners, itemFootprint, kindOfItem } from '../select.ts'
 import type { Item } from '../types.ts'
+import { circulationBlock, clearanceAround, clearanceFor, noteWhy } from './clear.ts'
 import { applyFacing } from './facing.ts'
 import { hangOf } from './site.ts'
 import type { Blocker, Cand, Layer, Site } from './types.ts'
@@ -17,32 +19,9 @@ const OVERLAP_TOL = 0.001
 /** Candidate streams are lazy and some are long; past this many the room is simply full. */
 export const MAX_TRIES = 900
 
-/** Area shared by two convex polygons (Sutherland–Hodgman clip of `a` by `b`). */
+/** Area shared by two convex polygons (one clip, shared with the corridor maths in plan/geometry/circulation.ts). */
 export function overlapArea(a: Vec2[], b: Vec2[]): number {
-  const s = signedArea(b) >= 0 ? 1 : -1
-  let out = a
-  for (let i = 0; i < b.length && out.length; i++) {
-    const p = b[i]!
-    const q = b[(i + 1) % b.length]!
-    const inside = (v: Vec2) => ((q[0] - p[0]) * (v[1] - p[1]) - (q[1] - p[1]) * (v[0] - p[0])) * s >= -EPS
-    const input = out
-    out = []
-    for (let j = 0; j < input.length; j++) {
-      const cur = input[j]!
-      const prev = input[(j + input.length - 1) % input.length]!
-      const ci = inside(cur)
-      if (ci !== inside(prev)) out.push(intersect(prev, cur, p, q))
-      if (ci) out.push(cur)
-    }
-  }
-  return out.length < 3 ? 0 : area(out)
-}
-
-function intersect(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2): Vec2 {
-  const d = (a1[0] - a2[0]) * (b1[1] - b2[1]) - (a1[1] - a2[1]) * (b1[0] - b2[0])
-  if (Math.abs(d) < EPS) return a2
-  const t = ((a1[0] - b1[0]) * (b1[1] - b2[1]) - (a1[1] - b1[1]) * (b1[0] - b2[0])) / d
-  return [a1[0] + t * (a2[0] - a1[0]), a1[1] + t * (a2[1] - a1[1])]
+  return sharedArea(a, b)
 }
 
 export function layerOf(kind: KindDescriptor, y?: number): Layer {
@@ -60,7 +39,8 @@ export function itemLayer(item: Item): Layer {
 
 export function blockerOf(item: Item): Blocker {
   const y = item.y ?? 0
-  return { id: item.id, box: itemCorners(item), layer: itemLayer(item), y, top: y + itemFootprint(item).height }
+  const layer = itemLayer(item)
+  return { id: item.id, box: itemCorners(item), layer, y, top: y + itemFootprint(item).height, kind: item.kind, clear: layer === 'floor' ? clearanceAround(item) : null }
 }
 
 /** Do two things fight for the same space? Rugs never do; hung and ceiling pieces only with what reaches their height. */
@@ -86,9 +66,24 @@ export function fits(site: Site, cand: Cand, extra: Blocker[]): Cand | null {
   for (const b of site.blockers) {
     // You can stand where a wall piece goes (step aside); only free placements keep off the viewer.
     if (b.id === 'player' && (c.pinned || c.middle || layer !== 'floor')) continue
-    if (conflicts(me, b)) return null
+    if (conflicts(me, b)) {
+      // A door swing is a circulation refusal too: the note should say which door it would block.
+      if (b.id.startsWith('swing:')) {
+        const door = site.corridors.find(cor => cor.door === b.id.slice(6))
+        if (door) noteWhy(site, `block ${door.why}`)
+      }
+      return null
+    }
   }
   for (const b of extra) if (conflicts(me, b)) return null
+  // Only pieces that take floor space can block a walk; rugs, hung pieces and things on top never do.
+  if (layer === 'floor') {
+    const why = circulationBlock(site, c, me, extra)
+    if (why) {
+      noteWhy(site, why)
+      return null
+    }
+  }
   return c
 }
 
@@ -127,5 +122,6 @@ export function firstFit(site: Site, cands: Iterable<Cand>, extra: Blocker[]): C
 
 export function toBlocker(site: Site, c: Cand): Blocker {
   const y = c.y ?? 0
-  return { id: '', box: boxCorners(c.pos, c.yaw, site.fp.length, site.fp.width), layer: layerOf(site.kind, c.y), y, top: y + site.fp.height }
+  const layer = layerOf(site.kind, c.y)
+  return { id: '', box: boxCorners(c.pos, c.yaw, site.fp.length, site.fp.width), layer, y, top: y + site.fp.height, kind: site.kind.kind, clear: layer === 'floor' ? clearanceFor(site.kind, c.pos, c.yaw, site.fp) : null }
 }

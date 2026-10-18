@@ -20,6 +20,11 @@ export const DOOR_CLEAR = 0.1
 export const OUTSIDE = 'outside'
 /** Two vertices closer than this (metres) lie on the same wall line; plans snap to 5 cm, so 3 cm never merges distinct walls. */
 export const LINE_TOL = 0.03
+/**
+ * A cased opening at least this share of its wall is an open-plan boundary (living open to the kitchen),
+ * not a hole in a wall: the wall goes entirely. Below it, the stubs either side are real wall the drawing shows.
+ */
+export const OPEN_SHARE = 0.85
 
 export interface WallOpening {
   id: string
@@ -31,6 +36,8 @@ export interface WallOpening {
   /** Bottom and top of the hole (a door starts at the floor; a window at its sill). */
   y0: number
   y1: number
+  /** A full-width opening (≥ OPEN_SHARE of an interior wall): the two rooms are one space, so no frame, header or jambs. */
+  open: boolean
 }
 
 export interface WallPiece {
@@ -56,7 +63,10 @@ export interface Wall {
   /** Unit normal pointing out of `rooms[0]`, toward `rooms[1]`. */
   normal: Vec2
   openings: WallOpening[]
+  /** Empty when `open`: nothing stands between the two rooms, so nothing is drawn or collided with. */
   pieces: WallPiece[]
+  /** The rooms either side are open to each other along this whole stretch (an open-plan boundary, not a wall). */
+  open: boolean
 }
 
 interface Edge {
@@ -177,7 +187,8 @@ function makeWall(covering: Span[], t0: number, t1: number, line: Line): Wall {
     rooms: [first.room, other],
     normal: first.normal,
     openings: [],
-    pieces: []
+    pieces: [],
+    open: false
   }
 }
 
@@ -198,13 +209,26 @@ function attachOpenings(ws: Wall[], plan: FloorPlan): void {
       width: o.width,
       along: best.c.t * best.w.length,
       y0: window ? o.sill ?? WINDOW_SILL : 0,
-      y1: o.height ?? (window ? WINDOW_HEAD : DOOR_HEAD)
+      y1: o.height ?? (window ? WINDOW_HEAD : DOOR_HEAD),
+      // Only cased openings: a door keeps its leaf however tight its wall, and the exterior envelope is never
+      // absent on a listing (an "opening" to outside is a misread door), so both stay walls.
+      open: o.kind === 'opening' && !best.w.exterior && o.width >= OPEN_SHARE * best.w.length - 1e-6
     })
   }
-  for (const w of ws) w.openings.sort((p, q) => p.along - q.along)
+  for (const w of ws) {
+    w.openings.sort((p, q) => p.along - q.along)
+    w.open = w.openings.some(o => o.open)
+    if (!w.open) continue
+    // The whole stretch is open, so the derived opening spans it: layout then sees no wall to back a sofa
+    // onto in the leftover stubs, and every consumer measures the same gap the renderer leaves.
+    const mid: Vec2 = round([(w.a[0] + w.b[0]) / 2, (w.a[1] + w.b[1]) / 2])
+    w.openings = w.openings.map(o => (o.open ? { ...o, at: mid, along: w.length / 2, width: w.length } : o))
+  }
 }
 
 function cutPieces(w: Wall, ceiling: number): WallPiece[] {
+  // An open-plan boundary is drawn with no wall line, so the 3D home has none either: not a header, not a stub.
+  if (w.open) return []
   const pieces: WallPiece[] = []
   const push = (kind: WallPiece['kind'], from: number, to: number, y0: number, y1: number) => {
     if (to - from < 0.005 || y1 - y0 < 0.005) return

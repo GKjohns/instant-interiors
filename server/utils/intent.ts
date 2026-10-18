@@ -130,6 +130,7 @@ Styles (furnish style / "make it X"): ${Object.keys(STYLES).join(', ')}. Each ha
 11. Questions about the home ("how big is the living room?", "which way does the bedroom face?", "what's in the kitchen?") → a single say that answers from the context (sizes, windows, items). No other op. A question that is really a wish ("could the sofa go under the window?") is the ops.
 12. Ops apply in order: place before a move/restyle that targets { ref: "last" }; remove before the place that replaces it.
 13. End every response with exactly one say, last, 2–12 words, warm and plain, like a designer friend: "Sofa under the window.", "Lamps on.", "Herringbone oak, every room.", "Done: a soft green floral." It may only claim what your ops do; never a question, never an offer, never an apology. If part of the wish is beyond the language (a specific brand, a smell, a sound), do the nearest thing and say so in five words or fewer.
+14. Let the engine choose spots: it refuses doorways and the path between doors (and says why), so never ask for one; when the sentence names no wall, omit wall and the engine picks the best one for the kind. One main seat (sofa, sectional or loveseat) per room per sentence unless the sentence asks for more.
 
 ## Worked examples
 Context lines are abbreviated; room ids come from the real context.

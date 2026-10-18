@@ -38,7 +38,7 @@ bench. Reading a plan is Sonnet 5.5 vision: 6 to 9 s, about $0.02. Both go throu
 ```bash
 nvm use 22
 npm install            # add packages with `npx npm@11 install <pkg>` (npm 10 hits an arborist bug here)
-npm run dev            # http://localhost:3092
+npm run dev            # http://localhost:3092 (PORT=3097 npm run dev for another port)
 npm test               # node --test over the pure kernel: plan geometry, layout, state, context, kit coverage
 npm run typecheck && npm run lint
 npm run check:kit      # build every furniture kind headless and check its footprint
@@ -64,14 +64,20 @@ localStorage; export and import JSON from the ⋯ menu.
    truth to be scored against.
 2. **The plan reader** (`server/utils/planExtract.ts`). Sonnet with structured output, prompted to make
    rooms tile without gaps, read dimension labels, and attach doors and windows to the rooms they join.
-   `connectRooms` adds a door for any room a read left sealed off. Scores live in `internal_docs/`.
+   Open-plan boundaries (a kitchen open to the living room) come back as one full-width opening, and the
+   home draws no wall there. Two reads run side by side and a deterministic scorer keeps the better
+   (`shared/plan/score.ts`). `connectRooms` adds a door only for a room or group a read left with no way in,
+   and says so in the plan's notes. Scores live in `internal_docs/`.
 3. **The op language** (`shared/home/ops.ts`). `place | move | remove | restyle | surface | light | furnish
    | goto | undo | reset | say`. Models never do coordinate math: a place is a Spot ("against the north
    wall of the living room", "beside the sofa", "where I'm looking") and a selector names things by kind,
    room, gaze or "what you just placed". Each op is validated on its own; a bad one never loses the sentence.
 4. **The kernel** (`shared/home/`). Pure TypeScript, no three.js. Resolves every Spot into metres,
    deterministically and seeded by the sentence, keeping things inside rooms, off door swings and out of
-   each other. Honest notes come back for what did not fit ("put the stove on the east wall instead"). The
+   each other. Every room gets walkways (a clear strip inside each door, lanes between doors) and every
+   piece gets its clearance (legroom in front of a sofa, an open side on a bed); placements that would block
+   them are refused or moved, and natural placement scores each wall for how livable it is. Moving a bed
+   carries its nightstands, lamps and picture; a swapped sofa leaves its replacement in the same spot. Honest notes come back for what did not fit ("put the stove on the east wall instead"). The
    op log is the truth: undo, reload, export and import replay it over the plan.
 5. **The brain** (`server/utils/intent.ts`). A cached digest (language, 70-kind catalog, rules, worked
    examples) plus a compact per-sentence context: which room you are in, what you are looking at, each
@@ -105,8 +111,9 @@ docs/screenshots/, public/samples/ (plan images + SOURCES.md), internal_docs/ (b
 
 ## Known limits
 
-Plan reads vary run to run on the same image (a hint helps; two reads with a tie-break is the planned
-fix). Moving a bed leaves its nightstands behind. A swapped sofa takes a new spot rather than the old one.
-Floor pieces can sink a few centimetres into walls. Plan view has no room labels yet. Not here yet:
-realtime voice (the browser mic works where SpeechRecognition exists), wall edits ("put a door here"),
-furniture collision while walking, a shoppable catalog.
+Plan reads still fold small closets (W/D, mech) into the hall about half the time, and reads without a hint
+are less stable; each plan is read twice and the cleaner read wins. Tight rooms now refuse a piece rather
+than block a walkway, so a small kitchen may seat only one or two chairs at a round table (the dial is
+`BLOCK_SHARE` in `shared/home/layout/clear.ts`). Floor pieces can sink a few centimetres into walls. Not
+here yet: realtime voice (the browser mic works where SpeechRecognition exists), wall edits ("put a door
+here"), furniture collision while walking, a shoppable catalog.

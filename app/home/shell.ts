@@ -107,6 +107,8 @@ export function buildShell(plan: FloorPlan): THREE.Group {
         }
       }
     }
+    // An open-plan boundary has no pieces and gets no frame either: the drawing shows no wall there.
+    if (w.open) continue
     for (const o of w.openings) {
       if (o.kind === 'window') window_(w, o, dir, trim, panes)
       else door(w, o, dir, trim, leaves, handles)

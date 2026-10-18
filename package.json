@@ -6,7 +6,7 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "build": "nuxt build",
-    "dev": "nuxt dev --port 3092",
+    "dev": "nuxt dev --port ${PORT:-3092}",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
