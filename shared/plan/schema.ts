@@ -150,6 +150,57 @@ export const LoosePlanSchema = z.object({
 export type LoosePlan = z.infer<typeof LoosePlanSchema>
 
 const FT = 0.3048
+/** Gaps up to this wide between two facing walls are a misread wall line, not a real void (a chase is wider and drawn). */
+const WELD_GAP = 0.25
+/** Only walls that face each other for this long are the same wall; a corner brushing past isn't. */
+const WELD_OVERLAP = 0.6
+
+/**
+ * Label-less plans come back with slivers between rooms (each room's polygon traced a little inside its
+ * walls). Where a room's edge faces a bigger room's edge across a gap of at most WELD_GAP, along at least
+ * WELD_OVERLAP, move the smaller room's edge onto the bigger one's line, so the two share one wall. Only
+ * gaps (never overlaps), only parallel edges, the bigger room never moves. Returns how many edges moved.
+ */
+export function weldGaps(rooms: Room[]): number {
+  let n = 0
+  const order = rooms.map((r, i) => ({ r, i, a: area(r.polygon) })).sort((p, q) => p.a - q.a || p.i - q.i)
+  for (const small of order) {
+    for (const big of order) {
+      if (big.a < small.a || big === small || (big.a === small.a && big.i < small.i)) continue
+      const sp = small.r.polygon
+      for (let i = 0; i < sp.length; i++) {
+        const a = sp[i]!
+        const b = sp[(i + 1) % sp.length]!
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+        if (len < WELD_OVERLAP) continue
+        const d: Vec2 = [(b[0] - a[0]) / len, (b[1] - a[1]) / len]
+        // Polygons are positive-area here, so the right-hand perpendicular points out of the room.
+        const out: Vec2 = [d[1], -d[0]]
+        const bp = big.r.polygon
+        for (let j = 0; j < bp.length; j++) {
+          const c = bp[j]!
+          const e = bp[(j + 1) % bp.length]!
+          const elen = Math.hypot(e[0] - c[0], e[1] - c[1])
+          if (elen < WELD_OVERLAP) continue
+          const ed: Vec2 = [(e[0] - c[0]) / elen, (e[1] - c[1]) / elen]
+          if (Math.abs(d[0] * ed[1] - d[1] * ed[0]) > 1e-3 || d[0] * ed[0] + d[1] * ed[1] > -0.999) continue
+          const gap = (c[0] - a[0]) * out[0] + (c[1] - a[1]) * out[1]
+          if (gap <= 0.01 || gap > WELD_GAP + 1e-6) continue
+          const t = (p: Vec2) => p[0] * d[0] + p[1] * d[1]
+          const overlap = Math.min(t(b), t(c)) - Math.max(t(a), t(e))
+          if (overlap < WELD_OVERLAP - 1e-6) continue
+          const move = (p: Vec2): Vec2 => [+(p[0] + out[0] * gap).toFixed(3), +(p[1] + out[1] * gap).toFixed(3)]
+          sp[i] = move(a)
+          sp[(i + 1) % sp.length] = move(b)
+          n++
+          break
+        }
+      }
+      small.r.polygon = cleanPolygon(sp)
+    }
+  }
+  return n
+}
 
 /**
  * Loose → strict. Converts feet, drops degenerate rooms (< 0.5 m²), snaps vertices to 5 cm so shared walls
@@ -188,6 +239,8 @@ export function normalizePlan(loose: unknown, source: FloorPlan['source'] = { ki
     rooms.push({ id: rid, name: r.name.trim().slice(0, 40) || rid, type, polygon: poly, floor: fin.floor, walls: fin.walls, ceiling: fin.ceiling })
   }
   if (!rooms.length) return { ok: false, reason: 'no usable rooms' }
+  const welded = weldGaps(rooms)
+  if (welded) notes.push(`closed ${welded} thin gap${welded === 1 ? '' : 's'} between rooms`)
 
   // Shift so the plan's top-left corner sits at the origin (the renderer centres it anyway; this keeps numbers small).
   let minX = Infinity

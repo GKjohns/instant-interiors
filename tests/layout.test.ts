@@ -270,3 +270,128 @@ test('footprints: props resize sized kinds and scale everything; corners rotate 
   const zs = box.map(p => +p[1].toFixed(3))
   assert.equal(Math.max(...zs) - Math.min(...zs), 2)
 })
+
+test('a full counter wall: the stove and fridge go on another wall or a corner of the kitchen, with a soft note', () => {
+  const run1 = applyBatch(createHome(P), [{ op: 'furnish', room: 'kitchen' }], 'furnish', ctx({ player: { pos: [7, 1.5], yaw: 0, room: 'kitchen' } }))
+  const s = run1.state
+  const kinds = s.items.filter(i => i.room === 'kitchen').map(i => i.kind)
+  for (const k of ['counter', 'sink', 'stove', 'fridge']) assert.ok(kinds.includes(k), `kitchen has a ${k}: ${kinds}`)
+  const counter = byKind(s, 'counter')[0]!
+  const fridge = byKind(s, 'fridge')[0]!
+  assert.ok(dotDir(frontOf(fridge.yaw), frontOf(counter.yaw)) < 0.5, 'the fridge is on a different wall from the counter')
+  for (const i of s.items) assert.ok(inside(i, 'kitchen'), `${i.id} inside`)
+  assert.ok(run1.effects.notes.some(n => /put the stove on the (north|south|east|west) wall instead/.test(n)), `softened note: ${run1.effects.notes}`)
+  assert.ok(!run1.effects.notes.some(n => /no stove to put/.test(n)), 'nothing downstream of the stove is lost')
+  // Deterministic: the same sentence twice lands the same kitchen.
+  const again = applyBatch(createHome(P), [{ op: 'furnish', room: 'kitchen' }], 'furnish', ctx({ player: { pos: [7, 1.5], yaw: 0, room: 'kitchen' } })).state
+  assert.deepEqual(again.items, s.items)
+})
+
+test('a nightstand that cannot sit beside its bed is skipped, not exiled to another wall', () => {
+  const c = ctx({ gaze: { point: [9.75, 2], room: 'bedroom_2' }, player: { pos: [9.75, 2], yaw: 0, room: 'bedroom_2' } })
+  const s = run(createHome(P), [{ op: 'furnish', room: 'bedroom_2' }], c).state
+  assert.equal(byKind(s, 'nightstand').length, 0)
+})
+
+test('"four dining chairs near the table" (no arrange) means around it', () => {
+  const s = run(createHome(P), [
+    { op: 'place', kind: 'round_table', at: { room: 'living', where: 'center' } },
+    { op: 'place', kind: 'dining_chair', count: 4, at: { room: 'living', where: 'near', of: { kind: 'round_table' } } }
+  ]).state
+  const table = byKind(s, 'round_table')[0]!
+  const chairs = byKind(s, 'dining_chair')
+  assert.equal(chairs.length, 4)
+  const r = chairs.map(ch => Math.hypot(ch.pos[0] - table.pos[0], ch.pos[1] - table.pos[1]))
+  assert.ok(Math.max(...r) - Math.min(...r) < 0.01, `a ring: ${r.map(x => x.toFixed(2))}`)
+  for (const ch of chairs) assert.ok(dotDir(frontOf(ch.yaw), [table.pos[0] - ch.pos[0], table.pos[1] - ch.pos[1]]) > 0.99, 'facing the table')
+  // Two of anything near a table is still a pair/row, not a ring.
+  const two = run(createHome(P), [
+    { op: 'place', kind: 'dining_table', at: { room: 'living', where: 'center' } },
+    { op: 'place', kind: 'dining_chair', count: 2, at: { room: 'living', where: 'near', of: { kind: 'dining_table' }, side: 'front' } }
+  ]).state
+  const pairOf = byKind(two, 'dining_chair')
+  const t = byKind(two, 'dining_table')[0]!
+  const f = frontOf(t.yaw)
+  assert.ok(pairOf.every(ch => (ch.pos[0] - t.pos[0]) * f[0] + (ch.pos[1] - t.pos[1]) * f[1] > 0.3), 'both in front')
+})
+
+test('a named wall that is full falls back to the kind\'s natural place, with a soft note; a move to where it stands says so', () => {
+  const home = createHome(P, { furnish: true })
+  const c = ctx({ player: { pos: [2.75, 2.25], yaw: Math.PI, room: 'living' } })
+  const r = run(home, [{ op: 'remove', target: { kind: 'sofa', room: 'living' } }, { op: 'place', kind: 'sectional', at: { where: 'wall', wall: 'north' } }], c)
+  assert.equal(byKind(r.state, 'sectional').length, 1)
+  assert.ok(inside(byKind(r.state, 'sectional')[0]!, 'living'))
+  assert.ok(r.effects.notes.some(n => /sectional.*instead/.test(n)), `${r.effects.notes}`)
+  const m = run(home, [{ op: 'move', target: { kind: 'bed', room: 'primary' }, at: { where: 'wall', wall: 'north' } }, { op: 'say', text: 'Bed on the north wall.' }], ctx({ player: { pos: [4, 6], yaw: 0, room: 'primary' } }))
+  assert.ok(m.effects.notes.some(n => /already there/.test(n)))
+  assert.match(m.effects.say[0]!, /^I couldn't: the bed \(queen\) is already there\.$/)
+})
+
+test('a round table in a tight furnished kitchen still seats what fits, square to the room', () => {
+  const c = ctx({ gaze: { point: [7, 1.5], room: 'kitchen' }, player: { pos: [7, 2.7], yaw: 0, room: 'kitchen' } })
+  const r = run(createHome(P, { furnish: true }), [{ op: 'place', kind: 'round_table' }, { op: 'place', kind: 'dining_chair', count: 4, arrange: 'around', at: { where: 'near', of: { kind: 'round_table', room: 'kitchen' } } }], c)
+  assert.ok(byKind(r.state, 'dining_chair').length >= 3, `${byKind(r.state, 'dining_chair').length} chairs`)
+  assert.match(r.effects.notes.join(' '), /only room for 3 of 4/)
+})
+
+test('a mirror "over the console" in a hall with no console still hangs on the hall wall, with a note; a nightstand with no bed does not', () => {
+  const c = ctx({ gaze: { point: [7, 5], room: 'hall' }, player: { pos: [7, 5.5], yaw: 0, room: 'hall' } })
+  const home = createHome(P, { furnish: true })
+  const r = run(home, [{ op: 'place', kind: 'mirror', at: { where: 'near', of: { kind: 'console_table', room: 'hall' }, side: 'on' } }], c)
+  const mirror = byKind(r.state, 'mirror').find(m => m.room === 'hall')
+  assert.ok(mirror, 'a mirror in the hall')
+  assert.ok(r.effects.notes.some(n => /no console table in the hall, so the mirror went on the wall/.test(n)), `${r.effects.notes}`)
+  const bare = run(createHome(P), [{ op: 'place', kind: 'nightstand', at: { room: 'primary', where: 'near', of: { kind: 'bed' }, side: 'beside' } }], c)
+  assert.equal(byKind(bare.state, 'nightstand').length, 0)
+})
+
+test('a table asked for the middle of the kitchen goes in the middle even when you stand there, so the chairs fit round it', () => {
+  const c = ctx({ gaze: { point: [7, 0.8], room: 'kitchen' }, player: { pos: [7, 1.5], yaw: 0, room: 'kitchen' } })
+  const r = run(createHome(P, { furnish: true }), [
+    { op: 'place', kind: 'round_table', at: { room: 'kitchen', where: 'center' } },
+    { op: 'place', kind: 'dining_chair', count: 4, arrange: 'around', at: { room: 'kitchen', where: 'near', of: { kind: 'round_table', room: 'kitchen' } } }
+  ], c)
+  assert.deepEqual(byKind(r.state, 'round_table')[0]!.pos, [7, 1.5])
+  assert.ok(byKind(r.state, 'dining_chair').length >= 3, `${byKind(r.state, 'dining_chair').length} chairs`)
+})
+
+test('a lamp "on the nightstand" skips the one that already has a lamp; a pair of lamps "on" the nightstands sits on top, never on the floor', () => {
+  const c = ctx({ gaze: { point: [4, 5.5], itemId: 'bed#2', room: 'primary' }, player: { pos: [4, 6], yaw: Math.PI, room: 'primary' } })
+  const home = createHome(P, { furnish: true })
+  const before = byKind(home, 'table_lamp').filter(l => l.room === 'primary').length
+  const one = run(home, [{ op: 'place', kind: 'table_lamp', at: { where: 'near', of: { kind: 'nightstand', room: 'primary' }, side: 'on' } }], c)
+  assert.equal(byKind(one.state, 'table_lamp').filter(l => l.room === 'primary').length, before + 1, `${one.effects.notes}`)
+  const two = run(createHome(P), [
+    { op: 'place', kind: 'bed', at: { room: 'primary', where: 'wall', wall: 'north' } },
+    { op: 'place', kind: 'nightstand', count: 2, arrange: 'pair', at: { where: 'near', of: { kind: 'bed', room: 'primary' }, side: 'beside' } },
+    { op: 'place', kind: 'table_lamp', count: 2, arrange: 'pair', at: { where: 'near', of: { kind: 'nightstand', room: 'primary' }, side: 'on' } }
+  ], c)
+  const stands = byKind(two.state, 'nightstand')
+  const lamps = byKind(two.state, 'table_lamp')
+  assert.equal(lamps.length, 2)
+  for (const l of lamps) {
+    assert.ok((l.y ?? 0) > 0.3, `lamp ${l.id} is up on something, y ${l.y}`)
+    assert.ok(stands.some(n => Math.hypot(n.pos[0] - l.pos[0], n.pos[1] - l.pos[1]) < 0.15), `lamp ${l.id} sits on a nightstand`)
+  }
+})
+
+test('"move the bed to the other wall" (south, facing the room) lands square on the south wall beside the dresser, even said from the hall', () => {
+  const home = createHome(P, { furnish: true })
+  for (const player of [{ pos: [4, 6] as Vec2, yaw: 0, room: 'primary' }, { pos: [7, 6] as Vec2, yaw: 0, room: 'hall' }]) {
+    const r = run(home, [{ op: 'move', target: { kind: 'bed', room: 'primary' }, at: { where: 'wall', wall: 'south', facing: 'room' } }], ctx({ player, gaze: { point: [4, 5.5], room: 'primary' } }))
+    const bed = byKind(r.state, 'bed').find(b => b.room === 'primary')!
+    assert.deepEqual(r.effects.notes, [], `from ${player.room}`)
+    assert.ok(bed.pos[1] > 6, `on the south half, ${bed.pos}`)
+    assert.ok(Math.abs(Math.abs(bed.yaw) - Math.PI) < 0.01, `square to the wall, yaw ${bed.yaw}`)
+    assert.ok(backGap(bed) < 0.05 && inside(bed, 'primary'))
+  }
+})
+
+test('"a big mirror over the console" in the hall: no console and no wall for 1.5×, so the usual size on the wall, with notes that say both', () => {
+  const c = ctx({ gaze: { point: [6.5, 6.2], room: 'hall' }, player: { pos: [7.2, 6.2], yaw: Math.PI / 2, room: 'hall' } })
+  const r = run(createHome(P, { furnish: true }), [{ op: 'place', kind: 'mirror', at: { room: 'hall', where: 'near', of: { kind: 'console_table', room: 'hall' }, side: 'on' }, set: { scale: 1.5 } }], c)
+  const mirror = byKind(r.state, 'mirror').find(m => m.room === 'hall')
+  assert.ok(mirror, `${r.effects.notes}`)
+  assert.equal(mirror.props.scale, undefined)
+  assert.match(r.effects.notes.join(' '), /usual size.*no console table in the hall/)
+})

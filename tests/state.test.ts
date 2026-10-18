@@ -9,7 +9,7 @@ import { KIT } from '../shared/home/kinds.ts'
 import { itemLayer, overlapArea } from '../shared/home/layout.ts'
 import { parseOps } from '../shared/home/ops.ts'
 import { itemCorners, itemFootprint } from '../shared/home/select.ts'
-import { applyBatch, applyOp, createHome, diffItems, exportHome, extendLastBatch, importHome, replayLog, undo } from '../shared/home/state.ts'
+import { applyBatch, applyOp, createHome, diffItems, exportHome, extendLastBatch, honestSay, importHome, replayLog, undo } from '../shared/home/state.ts'
 import type { HomeState, Item, OpContext } from '../shared/home/types.ts'
 
 const room = (id: string) => P.rooms.find(r => r.id === id)!
@@ -276,4 +276,12 @@ test('applyOp is pure; diffItems tells placed, moved, modified and removed apart
   const d = diffItems(state.items, [{ ...a, pos: [a.pos[0] + 1, a.pos[1]] }, { ...b, props: { color: 'red' } }, { ...a, id: 'sofa#9' }])
   assert.deepEqual(d, { placed: ['sofa#9'], moved: ['sofa#1'], modified: ['sofa#2'], removed: [] })
   assert.deepEqual(diffItems(state.items, [{ ...a, group: 'g7' }]), { placed: ['sofa#1'], moved: [], modified: [], removed: ['sofa#1', 'sofa#2'] })
+})
+
+test('honestSay: a half-done sentence carries the op note; furnish skips stay quiet', () => {
+  assert.equal(honestSay('Two nightstands.', true, ['only room for 1 of 2 nightstands']), 'Two nightstands. (only room for 1 of 2 nightstands)')
+  assert.equal(honestSay('A sectional instead.', true, ['place: no free wall for the sectional sofa in the living room']), 'A sectional instead. (no free wall for the sectional sofa in the living room)')
+  assert.equal(honestSay('Bedroom 2, calm.', true, ['Bedroom 2: no room to the left of the bed for the nightstand']), 'Bedroom 2, calm.')
+  assert.equal(honestSay('Only one fit.', true, ['only room for 1 of 2 nightstands']), 'Only one fit.')
+  assert.equal(honestSay('Sofa moved.', false, ['move: nothing matches sofa']), 'I couldn\'t: nothing matches sofa.')
 })

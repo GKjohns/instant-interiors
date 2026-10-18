@@ -165,12 +165,26 @@ function propText(props: Props): string {
 }
 
 const ITEMS_PER_ROOM = 12
+const FACES = new Set(['sofa', 'sectional', 'loveseat', 'desk', 'dresser', 'tv_stand', 'piano'])
+
+/** The compass wall at the thing's back when it stands within a bed's depth of it (else it floats). */
+function backWall(it: SceneItem, room: SceneRoom): string | null {
+  const back = compass((it.yaw * Math.PI) / 180)
+  const [hx, hz] = [room.size[0] / 2, room.size[1] / 2]
+  const gap: Record<string, number> = { N: it.pos[1] - (room.center[1] - hz), S: room.center[1] + hz - it.pos[1], W: it.pos[0] - (room.center[0] - hx), E: room.center[0] + hx - it.pos[0] }
+  return gap[back] !== undefined && gap[back] < 1.3 ? back : null
+}
 
 /** Items of one room grouped by kind (+ distinguishing props): "sofa (navy) · armchair ×2 · floor_lamp". */
-function roomItemsText(items: SceneItem[]): string {
+function roomItemsText(items: SceneItem[], room?: SceneRoom): string {
   const groups = new Map<string, { kind: string, props: string, n: number }>()
   for (const it of items) {
-    const props = propText(it.props)
+    // The big wall pieces say where they stand, so "the other wall" has an answer. "against N wall" rather
+    // than "faces S": Haiku read "faces S" as "is on the south wall" and moved the bed onto its own wall.
+    const big = it.tags.includes('bed') || FACES.has(it.kind)
+    const back = big && room ? backWall(it, room) : null
+    const facing = back ? `against ${back} wall` : big ? `faces ${compass(((it.yaw + 180) * Math.PI) / 180)}` : ''
+    const props = [propText(it.props), facing].filter(Boolean).join(', ')
     const key = `${it.kind}|${props}`
     const g = groups.get(key)
     if (g) g.n++
@@ -243,7 +257,7 @@ export function buildContext(sceneIn: Partial<Scene> | undefined, ctx: OpContext
     const order = [...scene.rooms.map(r => r.id), ...[...grouped.keys()].filter(id => !byId.has(id))]
     for (const id of order) {
       const items = grouped.get(id)
-      lines.push(`- ${id}: ${items?.length ? roomItemsText(items) : 'empty'}`)
+      lines.push(`- ${id}: ${items?.length ? roomItemsText(items, byId.get(id)) : 'empty'}`)
     }
   } else {
     lines.push('items: none (the home is bare)')

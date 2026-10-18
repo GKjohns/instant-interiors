@@ -6,6 +6,7 @@
  * runs it directly. Never throws: every failure is `{ ok: false, reason }`.
  */
 import { generateText, Output } from 'ai'
+import { connectRooms } from '../../shared/plan/geometry.ts'
 import { LoosePlanSchema, normalizePlan, ROOM_TYPES } from '../../shared/plan/schema.ts'
 import type { FloorPlan, LoosePlan } from '../../shared/plan/schema.ts'
 import { costUsd, PLAN_MODEL, resolveModel } from './aiModels.ts'
@@ -184,7 +185,10 @@ export async function extractPlan(opts: ExtractOptions): Promise<ExtractResult> 
     if (!parsed.success) return { ok: false, reason: `plan shape: ${parsed.error.issues.slice(0, 5).map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`, ms: ms(), costUsd: spent, path }
     const norm = normalizePlan(parsed.data, { kind: 'upload', notes: [] })
     if (!norm.ok) return { ok: false, reason: norm.reason, ms: ms(), costUsd: spent, path }
-    return { ok: true, plan: norm.plan, loose: parsed.data, notes: norm.notes, ms: ms(), costUsd: spent, usage: attempt.usage, path, model: alias }
+    // The reader often misses a door or walls off an open kitchen; a home you can't walk through is worse than a guessed door.
+    const linked = connectRooms(norm.plan)
+    const notes = linked.added.length ? [...norm.notes, `added what the read missed: ${linked.added.join(', ')}`] : norm.notes
+    return { ok: true, plan: linked.plan, loose: parsed.data, notes, ms: ms(), costUsd: spent, usage: attempt.usage, path, model: alias }
   } catch (err) {
     const why = ctrl.signal.aborted && ctrl.signal.reason instanceof Error ? ctrl.signal.reason.message : ((err as Error)?.message ?? String(err))
     return { ok: false, reason: why.slice(0, 300), ms: ms(), costUsd: spent }

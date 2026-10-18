@@ -1,0 +1,795 @@
+{
+  "walks": [
+    {
+      "label": "extracted desktop: forward from spawn",
+      "from": [
+        0.45,
+        0.45
+      ],
+      "to": [
+        2.15,
+        3.28
+      ],
+      "moved": 3.3,
+      "rooms": [
+        "bedroom_1"
+      ],
+      "chip": "Bedroom 1",
+      "clips": [],
+      "mismatch": []
+    },
+    {
+      "label": "tyneside: forward from spawn",
+      "from": [
+        0.45,
+        5.05
+      ],
+      "to": [
+        2.54,
+        3.43
+      ],
+      "moved": 2.64,
+      "rooms": [
+        "lounge"
+      ],
+      "chip": "Lounge",
+      "clips": [],
+      "mismatch": []
+    }
+  ],
+  "sentences": [
+    {
+      "sentence": "paint the living room a warm terracotta",
+      "ops": "surface living.walls",
+      "raw": [
+        {
+          "op": "surface",
+          "room": "living",
+          "part": "walls",
+          "set": {
+            "color": "#c9742b",
+            "pattern": "plain"
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "finished living",
+      "say": "Warm terracotta walls in the living room.",
+      "caption": "Warm terracotta walls in the living room.",
+      "firstOpMs": 1232,
+      "appliedMs": 1251,
+      "ms": 1265,
+      "wall": 3056,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_10_s01_terracotta.png"
+    },
+    {
+      "sentence": "wallpaper the primary bedroom in a navy damask",
+      "ops": "surface primary.walls",
+      "raw": [
+        {
+          "op": "surface",
+          "room": "primary",
+          "part": "walls",
+          "set": {
+            "color": "#22355e",
+            "pattern": "damask",
+            "accent": "#0f1a33"
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "finished primary",
+      "say": "Navy damask on the bedroom walls.",
+      "caption": "Navy damask on the bedroom walls.",
+      "firstOpMs": 1086,
+      "appliedMs": 1092,
+      "ms": 1150,
+      "wall": 2868,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_11_s02_damask.png"
+    },
+    {
+      "sentence": "make all the floors light oak herringbone",
+      "ops": "surface all.floor",
+      "raw": [
+        {
+          "op": "surface",
+          "room": "all",
+          "part": "floor",
+          "set": {
+            "color": "#c9a46e",
+            "pattern": "herringbone"
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "finished living, kitchen, bedroom_2, hall, bathroom, primary, closet, balcony",
+      "say": "Light oak herringbone, every room.",
+      "caption": "Light oak herringbone, every room.",
+      "firstOpMs": 1340,
+      "appliedMs": 1347,
+      "ms": 1404,
+      "wall": 3170,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_12_s03_herringbone.png"
+    },
+    {
+      "sentence": "put a round table with four chairs in the kitchen",
+      "ops": "place round_table | place dining_chair×4 around",
+      "raw": [
+        {
+          "op": "place",
+          "kind": "round_table",
+          "at": {
+            "where": "center"
+          }
+        },
+        {
+          "op": "place",
+          "kind": "dining_chair",
+          "count": 4,
+          "arrange": "around",
+          "at": {
+            "where": "near",
+            "of": {
+              "kind": "round_table",
+              "room": "kitchen"
+            },
+            "side": "beside"
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [
+        "only room for 3 of 4 dining chairs"
+      ],
+      "summary": "placed 1 round table, 3 dining chair (only room for 3 of 4 dining chairs)",
+      "say": "Round table with four chairs. (only room for 3 of 4 dining chairs)",
+      "caption": "Round table with four chairs. (only room for 3 of 4 dining chairs)",
+      "firstOpMs": 1101,
+      "appliedMs": 1112,
+      "ms": 1233,
+      "wall": 2997,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_13_s04_round_table.png"
+    },
+    {
+      "sentence": "swap the sofa for a green velvet sectional",
+      "ops": "remove {\"kind\":\"sofa\",\"room\":\"living\"} | place sectional",
+      "raw": [
+        {
+          "op": "remove",
+          "target": {
+            "kind": "sofa",
+            "room": "living"
+          }
+        },
+        {
+          "op": "place",
+          "kind": "sectional",
+          "at": {
+            "where": "wall",
+            "wall": "south",
+            "facing": "room"
+          },
+          "set": {
+            "color": "#2f5d3a",
+            "material": "velvet"
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [
+        "place: put the sectional sofa in a corner instead (no room for the sectional sofa on the south wall of the living room)"
+      ],
+      "summary": "placed 1 sectional · removed 1 (place: put the sectional sofa in a corner instead (no room for the sectional sofa on the south wall of the living room))",
+      "say": "A green velvet sectional. (put the sectional sofa in a corner instead)",
+      "caption": "A green velvet sectional. (put the sectional sofa in a corner instead)",
+      "firstOpMs": 840,
+      "appliedMs": 846,
+      "ms": 927,
+      "wall": 2691,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_14_s05_sectional.png"
+    },
+    {
+      "sentence": "hang a big mirror over the console in the hall",
+      "ops": "place mirror",
+      "raw": [
+        {
+          "op": "place",
+          "kind": "mirror",
+          "at": {
+            "where": "near",
+            "of": {
+              "kind": "console_table",
+              "room": "hall"
+            },
+            "side": "on"
+          },
+          "set": {
+            "scale": 1.25,
+            "hang": 1.6
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [
+        "place: no console table in the hall, so the mirror went on the wall"
+      ],
+      "summary": "placed 1 mirror (place: no console table in the hall, so the mirror went on the wall)",
+      "say": "A big mirror over the hall console. (no console table in the hall, so the mirror went on the wall)",
+      "caption": "A big mirror over the hall console. (no console table in the hall, so the mirror went on the wall)",
+      "firstOpMs": 807,
+      "appliedMs": 812,
+      "ms": 900,
+      "wall": 2676,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_15_s06_mirror_console.png"
+    },
+    {
+      "sentence": "a bookshelf on the east wall of the office",
+      "ops": "say",
+      "raw": [
+        {
+          "op": "say",
+          "text": "No office in this home."
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "nothing changed",
+      "say": "No office in this home.",
+      "caption": "No office in this home.",
+      "firstOpMs": 1141,
+      "ms": 1143,
+      "wall": 2897,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_16_s07_office.png"
+    },
+    {
+      "sentence": "move the bed to the other wall",
+      "ops": "move {\"kind\":\"bed\",\"room\":\"primary\"}",
+      "raw": [
+        {
+          "op": "move",
+          "target": {
+            "kind": "bed",
+            "room": "primary"
+          },
+          "at": {
+            "where": "wall",
+            "wall": "south",
+            "facing": "room"
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "moved 1",
+      "say": "Bed on the south wall.",
+      "caption": "Bed on the south wall.",
+      "firstOpMs": 879,
+      "appliedMs": 885,
+      "ms": 884,
+      "wall": 2640,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_17_s08_bed_other_wall.png"
+    },
+    {
+      "sentence": "I don't like this",
+      "ops": "remove {\"ref\":\"gaze\"}",
+      "raw": [
+        {
+          "op": "remove",
+          "target": {
+            "ref": "gaze"
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "removed 1",
+      "say": "That dresser is gone.",
+      "caption": "That dresser is gone.",
+      "firstOpMs": 1014,
+      "appliedMs": 1019,
+      "ms": 1054,
+      "wall": 2767,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_18_s09_dislike.png",
+      "gaze": {
+        "aimed": "dresser#2",
+        "hit": "dresser#2"
+      }
+    },
+    {
+      "sentence": "two nightstands with lamps",
+      "ops": "place table_lamp×2",
+      "raw": [
+        {
+          "op": "place",
+          "kind": "table_lamp",
+          "count": 2,
+          "at": {
+            "where": "near",
+            "of": {
+              "kind": "nightstand",
+              "room": "primary"
+            },
+            "side": "on"
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [
+        "only room for 1 of 2 table lamps"
+      ],
+      "summary": "placed 1 table lamp (only room for 1 of 2 table lamps)",
+      "say": "Lamps on the nightstands. (only room for 1 of 2 table lamps)",
+      "caption": "Lamps on the nightstands. (only room for 1 of 2 table lamps)",
+      "firstOpMs": 1066,
+      "appliedMs": 1071,
+      "ms": 1113,
+      "wall": 2821,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_19_s10_nightstands.png"
+    },
+    {
+      "sentence": "it's too dark in here",
+      "ops": "light {\"lamps\":true,\"warmth\":0.7}",
+      "raw": [
+        {
+          "op": "light",
+          "lamps": true,
+          "warmth": 0.7
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "light → evening, lamps on",
+      "say": "Lamps on.",
+      "caption": "Lamps on.",
+      "firstOpMs": 2173,
+      "appliedMs": 2176,
+      "ms": 2222,
+      "wall": 4677,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_20_s11_too_dark.png"
+    },
+    {
+      "sentence": "dawn",
+      "ops": "light {\"time\":\"dawn\",\"lamps\":false}",
+      "raw": [
+        {
+          "op": "light",
+          "time": "dawn",
+          "lamps": false
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "light → dawn",
+      "say": "Dawn light, lamps off.",
+      "caption": "Dawn light, lamps off.",
+      "firstOpMs": 787,
+      "appliedMs": 792,
+      "ms": 790,
+      "wall": 3074,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_21_s12_dawn.png"
+    },
+    {
+      "sentence": "take me to the balcony",
+      "ops": "goto balcony | say",
+      "raw": [
+        {
+          "op": "goto",
+          "room": "balcony"
+        },
+        {
+          "op": "say",
+          "text": "To the balcony."
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "walked to balcony",
+      "say": "To the balcony.",
+      "caption": "To the balcony.",
+      "firstOpMs": 879,
+      "appliedMs": 885,
+      "ms": 905,
+      "wall": 3116,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_22_s13_balcony.png"
+    },
+    {
+      "sentence": "remove everything in bedroom 2",
+      "ops": "remove {\"ref\":\"all\",\"room\":\"bedroom_2\"}",
+      "raw": [
+        {
+          "op": "remove",
+          "target": {
+            "ref": "all",
+            "room": "bedroom_2"
+          }
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "removed 7",
+      "say": "Bedroom 2 is cleared.",
+      "caption": "Bedroom 2 is cleared.",
+      "firstOpMs": 768,
+      "appliedMs": 771,
+      "ms": 777,
+      "wall": 2551,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_23_s14_clear_bed2.png"
+    },
+    {
+      "sentence": "furnish bedroom 2 mid-century",
+      "ops": "furnish bedroom_2 mid-century",
+      "raw": [
+        {
+          "op": "furnish",
+          "room": "bedroom_2",
+          "style": "mid-century"
+        }
+      ],
+      "dropped": [],
+      "notes": [
+        "Bedroom 2: no room to the left of the bed (queen) for the nightstand",
+        "Bedroom 2: no room to the right of the bed (queen) for the nightstand",
+        "Bedroom 2: no nightstand to put the table lamp near"
+      ],
+      "summary": "placed 1 bed, 1 dresser, 1 rug, 1 wardrobe, 1 picture, 1 plant, 1 ceiling light · finished bedroom_2 (Bedroom 2: no room to the left of the bed (queen) for the nightstand; Bedroom 2: no room to the right of the bed (queen) for the nightstand)",
+      "say": "Bedroom 2, mid-century and warm.",
+      "caption": "Bedroom 2, mid-century and warm.",
+      "firstOpMs": 802,
+      "appliedMs": 830,
+      "ms": 841,
+      "wall": 3170,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_24_s15_furnish_bed2.png"
+    },
+    {
+      "sentence": "make the rug bigger",
+      "ops": "restyle {\"kind\":\"rug\",\"room\":\"living\"}",
+      "raw": [
+        {
+          "op": "restyle",
+          "target": {
+            "kind": "rug",
+            "room": "living"
+          },
+          "set": {
+            "scale": 1.25
+          },
+          "relative": true
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "restyled 1",
+      "say": "A bigger rug.",
+      "caption": "A bigger rug.",
+      "firstOpMs": 881,
+      "appliedMs": 886,
+      "ms": 919,
+      "wall": 2666,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_25_s16_rug_bigger.png"
+    },
+    {
+      "sentence": "undo",
+      "ops": "undo | say",
+      "raw": [
+        {
+          "op": "undo"
+        },
+        {
+          "op": "say",
+          "text": "Undone."
+        }
+      ],
+      "dropped": [],
+      "notes": [
+        "undid g16 (“make the rug bigger”)"
+      ],
+      "summary": "undid g16 (“make the rug bigger”)",
+      "say": "Undone.",
+      "caption": "Undone.",
+      "firstOpMs": 743,
+      "appliedMs": 752,
+      "ms": 796,
+      "wall": 2546,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_26_s17_undo.png"
+    },
+    {
+      "sentence": "undo",
+      "ops": "undo | say",
+      "raw": [
+        {
+          "op": "undo"
+        },
+        {
+          "op": "say",
+          "text": "Undone."
+        }
+      ],
+      "dropped": [],
+      "notes": [
+        "undid g15 (“furnish bedroom 2 mid-century”)"
+      ],
+      "summary": "undid g15 (“furnish bedroom 2 mid-century”)",
+      "say": "Undone.",
+      "caption": "Undone.",
+      "firstOpMs": 824,
+      "appliedMs": 832,
+      "ms": 826,
+      "wall": 2618,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_27_s18_undo2.png"
+    },
+    {
+      "sentence": "start over",
+      "ops": "reset | say",
+      "raw": [
+        {
+          "op": "reset"
+        },
+        {
+          "op": "say",
+          "text": "Blank slate, back to the start."
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "placed 1 sofa, 1 bed, 2 dresser, 1 rug, 1 wardrobe, 1 picture, 1 plant, 1 ceiling light · moved 1 · removed 7 · finished living, kitchen, bedroom_2, hall, bathroom, primary, closet, balcony · light → afternoon · started over",
+      "say": "Blank slate, back to the start.",
+      "caption": "Blank slate, back to the start.",
+      "firstOpMs": 840,
+      "appliedMs": 857,
+      "ms": 844,
+      "wall": 3455,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_28_s19_start_over.png"
+    },
+    {
+      "sentence": "purple monkey dishwasher",
+      "ops": "say",
+      "raw": [
+        {
+          "op": "say",
+          "text": "I can't tell what you want there; try a specific change."
+        }
+      ],
+      "dropped": [],
+      "notes": [],
+      "summary": "nothing changed",
+      "say": "I can't tell what you want there; try a specific change.",
+      "caption": "I can't tell what you want there; try a specific change.",
+      "firstOpMs": 799,
+      "ms": 803,
+      "wall": 2581,
+      "shot": "/Users/kylejohnson/Programming/Workspace/hearth/internal_docs/20261017_hearth_v0/shots/qa_29_s20_nonsense.png"
+    }
+  ],
+  "checks": [
+    {
+      "name": "reload restores the home",
+      "ok": true,
+      "detail": "52/52 items, log 2/2"
+    },
+    {
+      "name": "reload restores the camera",
+      "ok": true,
+      "detail": "{\"pos\":[3,3],\"yaw\":0.7,\"room\":\"living\"} → {\"pos\":[3,3],\"yaw\":0.7,\"room\":\"living\"}"
+    },
+    {
+      "name": "reload restores the history",
+      "ok": true,
+      "detail": "2 entries before, 2 after (labels only for replayed batches)"
+    },
+    {
+      "name": "export → start over → import keeps the item count",
+      "ok": true,
+      "detail": "52 exported, 51 after reset, 52 imported"
+    },
+    {
+      "name": "light: night, noon, lamps, warmth all logged",
+      "ok": true,
+      "detail": "4 batches, lamps false, warmth 0.3"
+    },
+    {
+      "name": "light: four undos restore the light",
+      "ok": true,
+      "detail": "{\"time\":\"afternoon\",\"lamps\":false,\"warmth\":0.5}"
+    },
+    {
+      "name": "mobile: chip, bar and top-right do not overlap",
+      "ok": true,
+      "detail": "{\"room\":{\"x\":16,\"y\":16,\"w\":38,\"h\":30,\"r\":54,\"b\":46},\"top\":{\"x\":68.65625,\"y\":16,\"w\":305.34375,\"h\":36,\"r\":374,\"b\":52}}"
+    },
+    {
+      "name": "mobile: top-right fits the screen",
+      "ok": true,
+      "detail": "{\"x\":68.65625,\"y\":16,\"w\":305.34375,\"h\":36,\"r\":374,\"b\":52}"
+    },
+    {
+      "name": "mobile: the bar sends",
+      "ok": true,
+      "detail": "paint this room sage · surfaces 1"
+    },
+    {
+      "name": "first load: furnished sample",
+      "ok": true,
+      "detail": "52 items, spawn {\"pos\":[7.25,6.6],\"yaw\":0,\"room\":\"hall\"}"
+    },
+    {
+      "name": "first load: whisper visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "first load: room chip shows the hall",
+      "ok": true,
+      "detail": "Hall"
+    },
+    {
+      "name": "two undos pop two batches",
+      "ok": true,
+      "detail": "16 → 14"
+    },
+    {
+      "name": "start over resets to the furnished sample",
+      "ok": true,
+      "detail": "52 items, log g1"
+    },
+    {
+      "name": "extracted desktop_2br: spawn is not a closet",
+      "ok": true,
+      "detail": "kitchen (kitchen, 7.8 m²) at 5.5,6.5"
+    },
+    {
+      "name": "extracted desktop_2br: every room reachable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "extracted desktop_2br: furniture inside rooms",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "extracted desktop_2br: no wall slivers",
+      "ok": false,
+      "detail": "w5 bedroom_1|kitchen 0.05m; w18 balcony|outside 0.05m"
+    }
+  ],
+  "fps": [
+    {
+      "label": "extracted desktop_2br (from the spawn)",
+      "walk": {
+        "fps": 60,
+        "worst": 17
+      },
+      "plan": {
+        "fps": 60,
+        "worst": 17
+      }
+    },
+    {
+      "label": "furnished sample",
+      "walk": {
+        "fps": 60,
+        "worst": 17
+      },
+      "plan": {
+        "fps": 60,
+        "worst": 17
+      }
+    }
+  ],
+  "freezes": [
+    {
+      "label": "extracted: wallpaper every room floral",
+      "call": 2,
+      "sync": 1,
+      "toFrame": 24,
+      "worst": 17
+    },
+    {
+      "label": "extracted: furnish all mid-century",
+      "call": 69,
+      "sync": 62,
+      "toFrame": 58,
+      "worst": 50
+    },
+    {
+      "label": "surface: wallpaper every room floral",
+      "call": 1,
+      "sync": 0,
+      "toFrame": 23,
+      "worst": 17
+    },
+    {
+      "label": "surface: herringbone floors everywhere",
+      "call": 4,
+      "sync": 3,
+      "toFrame": 27,
+      "worst": 17
+    },
+    {
+      "label": "surface: terrazzo floors everywhere",
+      "call": 3,
+      "sync": 3,
+      "toFrame": 27,
+      "worst": 17
+    },
+    {
+      "label": "furnish all mid-century",
+      "call": 27,
+      "sync": 20,
+      "toFrame": 25,
+      "worst": 17
+    }
+  ],
+  "extract": [
+    {
+      "label": "desktop_2br via the upload UI",
+      "rooms": [
+        "bedroom_1(bedroom,18.2)",
+        "living(living,17.8)",
+        "balcony(balcony,4.7)",
+        "bedroom_2(bedroom,10.2)",
+        "bath_1(bathroom,7.7)",
+        "kitchen(kitchen,7.8)",
+        "hall(hall,3.0)",
+        "bath_2(bathroom,6.6)"
+      ],
+      "spawn": "kitchen (kitchen, 7.8 m²) at 5.5,6.5",
+      "doors": [
+        "bedroom_1↔living",
+        "balcony↔living",
+        "bedroom_2↔hall",
+        "bath_1↔bedroom_1",
+        "bath_1↔kitchen",
+        "kitchen↔living",
+        "hall↔living",
+        "bath_2↔hall"
+      ],
+      "unreachable": [],
+      "itemsOutside": [],
+      "slivers": [
+        "w5 bedroom_1|kitchen 0.05m",
+        "w18 balcony|outside 0.05m"
+      ],
+      "notes": [
+        "Closets and Mech/W/D simplified into hall",
+        "Depths for bath and kitchen estimated",
+        "Bedroom 1 walk-in closet merged into bedroom"
+      ],
+      "planFile": "internal_docs/20261017_hearth_v0/extract/qa_desktop_2br.plan.json",
+      "readMs": 7899
+    },
+    {
+      "label": "wiki_2br_tyneside via __hearth.extract (no hint)",
+      "rooms": [
+        "shower(bathroom,2.2)",
+        "kitchen(kitchen,2.9)",
+        "lounge(living,7.3)",
+        "bedroom_2(bedroom,2.7)",
+        "bedroom_1(bedroom,9.0)",
+        "hallway(hall,2.6)",
+        "upstairs_hallway(hall,2.6)"
+      ],
+      "spawn": "hallway (hall, 2.6 m²) at 3.25,7.699999999999999",
+      "doors": [
+        "kitchen↔shower",
+        "kitchen↔lounge",
+        "bedroom_2↔hallway",
+        "bedroom_1↔hallway",
+        "hallway↔upstairs_hallway",
+        "hallway↔lounge"
+      ],
+      "unreachable": [],
+      "itemsOutside": [],
+      "slivers": [],
+      "notes": [
+        "No dimension labels; sizes estimated from drawing proportions",
+        "Shower/kitchen door positions approximate"
+      ],
+      "planFile": "internal_docs/20261017_hearth_v0/extract/qa_wiki_2br_tyneside.plan.json",
+      "readMs": 7404
+    }
+  ]
+}

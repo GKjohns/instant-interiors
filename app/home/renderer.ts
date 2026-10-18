@@ -582,8 +582,21 @@ function placeGroup(group: THREE.Object3D, item: Item, desc: KindDescriptor, pla
   let y = item.y ?? 0
   if (desc.place === 'ceiling') y = item.y !== undefined ? item.y + h : plan.ceiling
   else if (desc.hang !== undefined || desc.place === 'wall_mounted') y = (item.y ?? Math.max(0.05, (item.props.hang ?? desc.hang ?? 1.5) - h / 2)) + h / 2
-  group.position.set(item.pos[0], y, item.pos[1])
+  // The kernel hangs a mirror or picture with its back on the room polygon, which is the wall's centreline;
+  // out to the wall's face, or a 5 cm-deep picture sits inside the plaster and never shows.
+  const out = desc.place === 'wall_mounted' ? wallFace(plan, item.pos) : 0
+  group.position.set(item.pos[0] + Math.sin(item.yaw) * out, y, item.pos[1] + Math.cos(item.yaw) * out)
   group.rotation.y = item.yaw
+}
+
+/** Half the thickness of the wall a hung thing is on (0 when nothing is within 20 cm). */
+function wallFace(plan: FloorPlan, p: Vec2): number {
+  let best = { d: 0.2, half: 0 }
+  for (const w of walls(plan)) {
+    const d = closestOnSegment(p, w.a, w.b).d
+    if (d < best.d) best = { d, half: w.thickness / 2 }
+  }
+  return best.half
 }
 
 function shapeOf(item: Item): string {

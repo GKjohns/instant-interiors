@@ -7,7 +7,7 @@
  * local +z face, so `faceToward` is the one helper for "turn its front to X"; poly.ts's `yawToward` points
  * the local -z (the camera's forward) and is for the player.
  */
-import { EPS, area, dirOf, dist, distToPolygonEdge, nearestEdge, pointInPolygon, signedArea, yawToward } from '../plan/poly.ts'
+import { EPS, area, compassOf, dirOf, dist, distToPolygonEdge, nearestEdge, pointInPolygon, signedArea, yawToward } from '../plan/poly.ts'
 import type { Vec2 } from '../plan/poly.ts'
 import type { FloorPlan, Room } from '../plan/schema.ts'
 import { DOOR_CLEAR, DOOR_HEAD, WINDOW_SILL, cornersOf, doorsOf, freeAlong, roomAt, roomCenter, wallSegmentsOf, windowsOf } from '../plan/geometry.ts'
@@ -36,7 +36,8 @@ export interface LayoutOpts {
   props?: Props
 }
 
-export type LayoutResult = Placed[] | { fail: string }
+/** `note` says where a piece went when it could not go where it was asked ("put the stove on the east wall instead"). */
+export type LayoutResult = (Placed[] & { note?: string, why?: string }) | { fail: string }
 
 /** Which things can share floor space: rugs go under everything, hung pieces only clash with what reaches them. */
 export type Layer = 'floor' | 'under' | 'mounted' | 'ceiling' | 'top'
@@ -179,6 +180,8 @@ function overlaps(a: Vec2[], b: Vec2[]): boolean {
 interface Cand extends Placed {
   /** Against a wall or in a row: swept along, never nudged off its line or pulled toward the centre. */
   pinned?: boolean
+  /** The room's own middle: may land where the viewer stands (they step back), see centerCands. */
+  middle?: boolean
 }
 
 interface Scene {
@@ -283,7 +286,7 @@ function fits(sc: Scene, cand: Cand, extra: Blocker[]): Cand | null {
   const me: Blocker = { id: '', box: boxCorners(c.pos, c.yaw, sc.fp.length, sc.fp.width), layer, y, top: y + sc.fp.height }
   for (const b of sc.blockers) {
     // You can stand where a wall piece goes (step aside); only free placements keep off the viewer.
-    if (b.id === 'player' && (c.pinned || layer !== 'floor')) continue
+    if (b.id === 'player' && (c.pinned || c.middle || layer !== 'floor')) continue
     if (conflicts(me, b)) return null
   }
   for (const b of extra) if (conflicts(me, b)) return null
@@ -316,7 +319,9 @@ function applyFacing(sc: Scene, c: Cand): Cand {
   const f = sc.spot?.facing
   if (!f) return c
   switch (f) {
-    case 'room': return { ...c, yaw: faceToward(c.pos, sc.center) }
+    // A piece pinned to a wall already faces straight into the room; aiming it at the centroid skewed a bed
+    // off its wall into the dresser, and "move the bed to the south wall, facing the room" failed.
+    case 'room': return c.pinned ? c : { ...c, yaw: faceToward(c.pos, sc.center) }
     case 'wall': {
       const e = nearestEdge(c.pos, sc.poly)
       return { ...c, yaw: yawFacing([-e.normal[0], -e.normal[1]]) }
@@ -513,7 +518,9 @@ function* centerCands(sc: Scene): Generator<Cand> {
       yaw = [...seats].sort((p, q) => dist(p.pos, pos) - dist(q.pos, pos))[0]!.yaw
     }
   }
-  yield { pos, yaw, room: sc.room.id }
+  // Standing in the middle of a small kitchen and asking for a table used to shove it against a wall (dodging
+  // the viewer) with room for two chairs; the middle is the table's place, and walking has no furniture collision.
+  yield { pos, yaw, room: sc.room.id, middle: true }
 }
 
 /** Free-standing things keep out of the very middle: a seeded ring around the centre, facing in. */
@@ -602,6 +609,8 @@ function* sideCands(sc: Scene, A: Item, fa: Footprint, sgn: number, span: number
     if (snap) {
       // A nightstand beside a bed, a stove beside the counter: keep its back on the same wall as the anchor.
       const along = dot([pos[0] - back.a[0], pos[1] - back.a[1]], back.dir)
+      // Same rules as any wall piece: a fridge beside the stove still never stands in front of the glass.
+      if (!stretchesFor(sc, back).some(st => st.from <= along - span / 2 + 1e-6 && along + span / 2 <= st.to + 1e-6)) continue
       yield wallPose(sc, back, along, WALL_GAP)
     } else yield { pos, yaw: yawFor(pos), room: A.room }
   }
@@ -703,11 +712,15 @@ function row(sc: Scene, where: Place, side: Side | undefined, n: number, gap = R
 function each(sc: Scene, where: Place, side: Side | undefined, n: number): Cand[] {
   const out: Cand[] = []
   const extra: Blocker[] = []
-  for (let i = 0; i < n; i++) {
+  // An anchor that is already taken (the nightstand that has its lamp) is skipped, not the end of the line.
+  for (let i = 0; out.length < n && i < n + sc.anchors.length; i++) {
     const anchor = sc.anchors[i % Math.max(1, sc.anchors.length)]
     const scene = anchor && anchor !== sc.anchor ? { ...sc, anchor } : sc
     const f = firstFit(scene, candidates(scene, where, side, sc.fp.length), extra)
-    if (!f) break
+    if (!f) {
+      if (sc.anchors.length > 1) continue
+      break
+    }
     out.push(f)
     extra.push(toBlocker(sc, f))
   }
@@ -755,21 +768,33 @@ function around(sc: Scene, n: number): Cand[] {
   const gap = sc.spot?.dist ?? 0.05
   const out: Cand[] = []
   const extra: Blocker[] = []
+  // A round table's footprint is its bounding square: a chair on the diagonal is clear of the real top, so
+  // the ring only checks the room and the other chairs, never the table it rings.
+  const round = A.kind === 'round_table' || Math.abs(fa.length - fa.width) < 0.05
+  const scene = round ? { ...sc, blockers: sc.blockers.filter(b => b.id !== A.id) } : sc
   const take = (c: Cand) => {
-    const f = fits(sc, applyFacing(sc, c), extra)
+    const f = fits(scene, applyFacing(sc, c), extra)
     if (!f) return
     out.push(f)
     extra.push(toBlocker(sc, f))
   }
-  if (A.kind === 'round_table' || Math.abs(fa.length - fa.width) < 0.05) {
+  if (round) {
     const r = fa.length / 2 + gap + sc.fp.width / 2
-    const start = sc.rand() * TAU
-    for (let i = 0; i < n; i++) {
-      const a = start + (i * TAU) / n
-      const pos: Vec2 = [A.pos[0] + Math.cos(a) * r, A.pos[1] + Math.sin(a) * r]
-      take({ pos, yaw: faceToward(pos, A.pos), room: A.room, pinned: true })
+    // In a small kitchen one rotation of the ring puts every chair in an appliance and another clears them
+    // all: try square to the room first, then eighth-turns, and keep the rotation that seats the most.
+    let best: Cand[] = []
+    for (const start of [0, Math.PI / 4, Math.PI / 8, (3 * Math.PI) / 8, sc.rand() * TAU]) {
+      out.length = 0
+      extra.length = 0
+      for (let i = 0; i < n; i++) {
+        const a = start + (i * TAU) / n
+        const pos: Vec2 = [A.pos[0] + Math.cos(a) * r, A.pos[1] + Math.sin(a) * r]
+        take({ pos, yaw: faceToward(pos, A.pos), room: A.room, pinned: true })
+      }
+      if (out.length > best.length) best = [...out]
+      if (best.length === n) break
     }
-    return out
+    return best
   }
   const f = frontOf(A.yaw)
   const lft = sideOf(A.yaw)
@@ -807,7 +832,19 @@ export function resolveSpot(state: HomeState, spot: Spot | undefined, kind: Kind
   let anchors: Item[] = []
   if (spot?.of) {
     anchors = pickAnchors(state, spot, ctx)
-    if (!anchors.length) return { fail: `no ${describeSel(spot.of)} to put the ${kind.label} near` }
+    if (!anchors.length) {
+      // "A mirror over the console in the hall" with no console: a wall piece still has an obvious home on
+      // that room's wall, which beats nothing; the note owns up that the anchor wasn't there. Not for a missing
+      // bed: a nightstand alone on a wall is furniture for nobody.
+      const ref = spot.room ?? spot.of.room
+      const r = ref ? resolveRoom(state.plan, ref, ctx) : hereRoom(state.plan, ctx)
+      if (r && r !== 'all' && ['wall', 'wall_mounted', 'corner'].includes(kind.place) && !/bed/.test(spot.of.kind ?? spot.of.tag ?? '')) {
+        const got = resolveSpot(state, { room: r.id }, kind, ctx, opts)
+        const at = kind.place === 'corner' ? 'in a corner' : 'on the wall'
+        if (!('fail' in got)) return Object.assign(got, { note: `no ${describeSel(spot.of)} in the ${r.name.toLowerCase()}, so the ${kind.label} went ${at}` })
+      }
+      return { fail: `no ${describeSel(spot.of)} to put the ${kind.label} near` }
+    }
   }
   const room = roomFor(state, spot, ctx, anchors[0])
   if (!room) return { fail: spot?.room ? `I don't know a room called “${spot.room}”` : 'no room to put it in' }
@@ -815,13 +852,37 @@ export function resolveSpot(state: HomeState, spot: Spot | undefined, kind: Kind
   const where = whereOf(spot, kind, sc.anchor)
   const side = spot?.side ?? (where === 'near' ? 'beside' : undefined)
   const n = Math.max(1, Math.round(opts.count))
-  const placed = n === 1 ? [firstFit(sc, candidates(sc, where, side, sc.fp.length), [])].filter((c): c is Cand => !!c) : group(sc, where, side, n, opts.arrange)
-  if (!placed.length) return { fail: failMessage(sc, where, side) }
-  return placed.map(p => ({ pos: [round3(p.pos[0]), round3(p.pos[1])] as Vec2, yaw: round3(p.yaw), room: p.room, ...(p.y !== undefined ? { y: round3(p.y) } : {}) }))
+  // On top of a thing with several candidates ("a lamp on the nightstand"): the next one when the first is topped.
+  const onAny = side === 'on' && sc.anchors.length > 1
+  const placed = n === 1 && !onAny ? [firstFit(sc, candidates(sc, where, side, sc.fp.length), [])].filter((c): c is Cand => !!c) : group(sc, where, side, n, opts.arrange)
+  if (placed.length) return toPlaced(placed)
+  // Beside a full counter (or on a named wall that is full), a floor-standing wall piece is still better on
+  // another wall or in a corner of the same room than not at all: a kitchen with no stove reads as broken, one
+  // on the far wall doesn't. Not beside a bed: a nightstand across the room from it is worse than none.
+  const natural = kind.place === 'wall' || kind.place === 'corner'
+  const asked = where === 'near' || (where === 'wall' && !!spot?.wall)
+  if (asked && natural && layerOf(kind) === 'floor' && !sc.anchor?.tags.includes('bed')) {
+    const loose: Scene = { ...sc, spot: spot?.room ? { room: spot.room } : undefined }
+    for (const alt of kind.place === 'corner' ? ['corner', 'wall'] as const : ['wall', 'corner'] as const) {
+      const got = n === 1 ? [firstFit(loose, candidates(loose, alt, undefined, sc.fp.length), [])].filter((c): c is Cand => !!c) : group(loose, alt, undefined, n, undefined)
+      if (!got.length) continue
+      const f = frontOf(got[0]!.yaw)
+      const at = alt === 'wall' ? `on the ${compassOf([-f[0], -f[1]])} wall` : 'in a corner'
+      return Object.assign(toPlaced(got), { note: `put the ${kind.label} ${at} instead (${failMessage(sc, where, side)})`, why: failMessage(sc, where, side) })
+    }
+  }
+  return { fail: failMessage(sc, where, side) }
+}
+
+function toPlaced(cands: Cand[]): Placed[] {
+  return cands.map(p => ({ pos: [round3(p.pos[0]), round3(p.pos[1])] as Vec2, yaw: round3(p.yaw), room: p.room, ...(p.y !== undefined ? { y: round3(p.y) } : {}) }))
 }
 
 function group(sc: Scene, where: Place, side: Side | undefined, n: number, arrange: Arrangement | undefined): Cand[] {
-  const arr: Arr = arrange ?? defaultArrange(where, side)
+  // "Four dining chairs near the table" arrives without arrange: three or more of anything near a table ring it.
+  const ring = !arrange && n >= 3 && where === 'near' && (!sc.spot?.side || sc.spot.side === 'beside') && !!sc.anchor?.tags.includes('table')
+  // "Two lamps on the nightstands" arrives as a pair: on top of things is always one per anchor, never a floor row.
+  const arr: Arr = ring ? 'around' : where === 'near' && side === 'on' ? 'each' : arrange ?? defaultArrange(where, side)
   switch (arr) {
     case 'around': return sc.anchor ? around(sc, n) : cluster(sc, where, side, n)
     case 'pair': return sc.anchor && where === 'near' && n === 2 ? pair(sc) : row(sc, where, side, n, 0.4)
@@ -878,7 +939,7 @@ function failMessage(sc: Scene, where: Place, side: Side | undefined): string {
   const what = sc.kind.label
   const room = sc.room.name.toLowerCase()
   switch (where) {
-    case 'wall': return `no free wall for the ${what} in the ${room}`
+    case 'wall': return sc.spot?.wall ? `no room for the ${what} on the ${sc.spot.wall} wall of the ${room}` : `no free wall for the ${what} in the ${room}`
     case 'corner': return `no free corner for the ${what} in the ${room}`
     case 'window': return sc.windows.length ? `no room by the window for the ${what}` : `the ${room} has no window`
     case 'door': return sc.doors.length ? `no room by the door for the ${what}` : `the ${room} has no door`

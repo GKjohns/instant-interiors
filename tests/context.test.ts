@@ -96,8 +96,8 @@ test('the context block: player room, gaze on an item, rooms with windows and do
   assert.match(block, /^last: g4 "a pile of books" → books ×15$/m)
   assert.match(block, /^- living: Living room 5\.5×4\.5 m, windows north\+west, doors → hall, kitchen$/m)
   assert.match(block, /^- hall: Hall 3×4\.5 m, doors → outside, living, kitchen, bedroom_2, primary, closet, balcony$/m)
-  assert.match(block, /^- living: sofa \(navy, velvet\) · rug · armchair ×2 · floor_lamp \(off\)$/m)
-  assert.match(block, /^- primary: bed · books ×15$/m)
+  assert.match(block, /^- living: sofa \(navy, velvet, faces N\) · rug · armchair ×2 · floor_lamp \(off\)$/m, 'a big piece away from its back wall says which way it faces')
+  assert.match(block, /^- primary: bed \(against N wall\) · books ×15$/m, 'one with its back to a wall names that wall, so "the other wall" has an answer')
   assert.match(block, /^- kitchen: empty$/m)
   assert.match(block, /^light: evening · lamps on · warmth 0\.8$/m)
   // Compact: no item ids outside the gaze line, well under the line budget.

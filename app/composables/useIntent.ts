@@ -222,7 +222,9 @@ async function build(request: string, ctx: OpContext, source: 'text' | 'voice' =
     if (out.ops.some(o => o.op === 'undo')) other.push('undid the last change')
     if (fx.reset) other.push('started over')
     notes.push(...fx.notes)
-    says.push(...fx.say)
+    // A say that joins a batch skipped the kernel's honesty pass (it ran before the say arrived): run it here
+    // over everything this sentence did, so the caption never claims four chairs when one fit.
+    says.push(...fx.say.map(t => honestSay(t, changedSoFar(), notes)))
     applied.push(...out.ops)
   }
   const changedSoFar = () => placed.size + moved.size + modified.size + removed.size > 0 || other.length > 0
@@ -243,8 +245,9 @@ async function build(request: string, ctx: OpContext, source: 'text' | 'voice' =
     const out = target && op.op !== 'undo' && op.op !== 'reset' ? home.extend(target.id, target.at, [op]) : null
     if (out) {
       if (out.batch) target = { id: out.batch.id, at: out.batch.at }
+      const from = says.length
       absorb(out)
-      if (out.effects.say.length) home.caption.value = { text: out.effects.say.join(' '), at: Date.now() }
+      if (out.effects.say.length) home.caption.value = { text: says.slice(from).join(' '), at: Date.now() }
     } else if (op.op === 'say') {
       // A say with no batch to join (the sentence changed nothing, or the batch is no longer last): caption
       // it, through the same honesty filter as a batch's lines.

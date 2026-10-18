@@ -54,7 +54,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="pointer-events-none absolute inset-x-4 bottom-24 flex flex-col items-center gap-1 text-center">
+  <!-- bottom-30: clear of the bar AND the key hints under it; at bottom-24 a two-line caption ran into the bar. -->
+  <div class="pointer-events-none absolute inset-x-4 bottom-30 flex flex-col items-center gap-1 text-center">
     <Transition
       enter-from-class="opacity-0 translate-y-2 blur-sm"
       leave-to-class="opacity-0 -translate-y-1 blur-sm"

@@ -1,0 +1,438 @@
+{
+ "id": "2_bed_terraced_flat",
+ "name": "2 bed terraced flat",
+ "ceiling": 2.7,
+ "north": 0,
+ "rooms": [
+  {
+   "id": "shower",
+   "name": "Shower",
+   "type": "bathroom",
+   "polygon": [
+    [
+     0,
+     0
+    ],
+    [
+     2.2,
+     0
+    ],
+    [
+     2.2,
+     1.6
+    ],
+    [
+     0,
+     1.6
+    ]
+   ],
+   "floor": {
+    "color": "#d8d8d4",
+    "pattern": "checker",
+    "accent": "#8a8f94"
+   },
+   "walls": {
+    "color": "#dfe7ea",
+    "pattern": "subway",
+    "accent": "#c9d3d7"
+   },
+   "ceiling": {
+    "color": "#f4f1ea",
+    "pattern": "plain"
+   }
+  },
+  {
+   "id": "kitchen",
+   "name": "Kitchen",
+   "type": "kitchen",
+   "polygon": [
+    [
+     0,
+     1.6
+    ],
+    [
+     2.2,
+     1.6
+    ],
+    [
+     2.2,
+     3.3
+    ],
+    [
+     0,
+     3.3
+    ]
+   ],
+   "floor": {
+    "color": "#c9c3b8",
+    "pattern": "tile",
+    "accent": "#b8b1a4"
+   },
+   "walls": {
+    "color": "#eee9df",
+    "pattern": "plain"
+   },
+   "ceiling": {
+    "color": "#f4f1ea",
+    "pattern": "plain"
+   }
+  },
+  {
+   "id": "lounge",
+   "name": "Lounge",
+   "type": "living",
+   "polygon": [
+    [
+     0,
+     3.3
+    ],
+    [
+     3,
+     3.3
+    ],
+    [
+     3,
+     5.9
+    ],
+    [
+     0,
+     5.9
+    ]
+   ],
+   "floor": {
+    "color": "#b48f6b",
+    "pattern": "plank"
+   },
+   "walls": {
+    "color": "#ece5d8",
+    "pattern": "plain"
+   },
+   "ceiling": {
+    "color": "#f4f1ea",
+    "pattern": "plain"
+   }
+  },
+  {
+   "id": "bedroom_2",
+   "name": "Bedroom 2",
+   "type": "bedroom",
+   "polygon": [
+    [
+     3,
+     3.3
+    ],
+    [
+     4.3,
+     3.3
+    ],
+    [
+     4.3,
+     5.4
+    ],
+    [
+     3,
+     5.4
+    ]
+   ],
+   "floor": {
+    "color": "#b08d6a",
+    "pattern": "plank"
+   },
+   "walls": {
+    "color": "#e9e1d4",
+    "pattern": "plain"
+   },
+   "ceiling": {
+    "color": "#f4f1ea",
+    "pattern": "plain"
+   }
+  },
+  {
+   "id": "bedroom_1",
+   "name": "Bedroom 1",
+   "type": "bedroom",
+   "polygon": [
+    [
+     0,
+     5.9
+    ],
+    [
+     3,
+     5.9
+    ],
+    [
+     3,
+     9
+    ],
+    [
+     0,
+     9
+    ]
+   ],
+   "floor": {
+    "color": "#b08d6a",
+    "pattern": "plank"
+   },
+   "walls": {
+    "color": "#e9e1d4",
+    "pattern": "plain"
+   },
+   "ceiling": {
+    "color": "#f4f1ea",
+    "pattern": "plain"
+   }
+  },
+  {
+   "id": "hallway",
+   "name": "Hallway",
+   "type": "hall",
+   "polygon": [
+    [
+     3,
+     5.4
+    ],
+    [
+     3.6,
+     5.4
+    ],
+    [
+     3.6,
+     9
+    ],
+    [
+     3,
+     9
+    ]
+   ],
+   "floor": {
+    "color": "#ad8b66",
+    "pattern": "plank"
+   },
+   "walls": {
+    "color": "#ece6da",
+    "pattern": "plain"
+   },
+   "ceiling": {
+    "color": "#f4f1ea",
+    "pattern": "plain"
+   }
+  },
+  {
+   "id": "stairs",
+   "name": "Upstairs Hallway and stairs up",
+   "type": "hall",
+   "polygon": [
+    [
+     3.6,
+     5.4
+    ],
+    [
+     4.3,
+     5.4
+    ],
+    [
+     4.3,
+     9
+    ],
+    [
+     3.6,
+     9
+    ]
+   ],
+   "floor": {
+    "color": "#ad8b66",
+    "pattern": "plank"
+   },
+   "walls": {
+    "color": "#ece6da",
+    "pattern": "plain"
+   },
+   "ceiling": {
+    "color": "#f4f1ea",
+    "pattern": "plain"
+   }
+  }
+ ],
+ "openings": [
+  {
+   "id": "window_1",
+   "kind": "window",
+   "at": [
+    3,
+    3.3
+   ],
+   "width": 0.8,
+   "height": 2.1,
+   "sill": 0.9,
+   "rooms": [
+    "bedroom_2",
+    "outside"
+   ]
+  },
+  {
+   "id": "window_2",
+   "kind": "window",
+   "at": [
+    3.8,
+    3.3
+   ],
+   "width": 0.8,
+   "height": 2.1,
+   "sill": 0.9,
+   "rooms": [
+    "bedroom_2",
+    "outside"
+   ]
+  },
+  {
+   "id": "window_3",
+   "kind": "window",
+   "at": [
+    1.5,
+    9
+   ],
+   "width": 1.6,
+   "height": 2.1,
+   "sill": 0.9,
+   "rooms": [
+    "bedroom_1",
+    "outside"
+   ]
+  },
+  {
+   "id": "door_4",
+   "kind": "door",
+   "at": [
+    1.5,
+    3.3
+   ],
+   "width": 0.85,
+   "height": 2.05,
+   "rooms": [
+    "kitchen",
+    "lounge"
+   ]
+  },
+  {
+   "id": "door_5",
+   "kind": "door",
+   "at": [
+    3,
+    5.9
+   ],
+   "width": 0.85,
+   "height": 2.05,
+   "rooms": [
+    "lounge",
+    "hallway"
+   ]
+  },
+  {
+   "id": "door_6",
+   "kind": "door",
+   "at": [
+    3,
+    6.7
+   ],
+   "width": 0.85,
+   "height": 2.05,
+   "rooms": [
+    "bedroom_1",
+    "hallway"
+   ]
+  },
+  {
+   "id": "door_7",
+   "kind": "door",
+   "at": [
+    3.3,
+    9
+   ],
+   "width": 0.9,
+   "height": 2.05,
+   "rooms": [
+    "hallway",
+    "outside"
+   ]
+  },
+  {
+   "id": "door_8",
+   "kind": "door",
+   "at": [
+    4,
+    9
+   ],
+   "width": 0.9,
+   "height": 2.05,
+   "rooms": [
+    "stairs",
+    "outside"
+   ]
+  },
+  {
+   "id": "window_9",
+   "kind": "window",
+   "at": [
+    2.2,
+    0.7
+   ],
+   "width": 0.7,
+   "height": 2.1,
+   "sill": 0.9,
+   "rooms": [
+    "shower",
+    "outside"
+   ]
+  },
+  {
+   "id": "link_1",
+   "kind": "door",
+   "at": [
+    3.6,
+    7.2
+   ],
+   "width": 0.85,
+   "height": 2.05,
+   "rooms": [
+    "hallway",
+    "stairs"
+   ]
+  },
+  {
+   "id": "link_2",
+   "kind": "door",
+   "at": [
+    3,
+    4.35
+   ],
+   "width": 0.85,
+   "height": 2.05,
+   "rooms": [
+    "lounge",
+    "bedroom_2"
+   ]
+  },
+  {
+   "id": "link_3",
+   "kind": "door",
+   "at": [
+    1.1,
+    1.6
+   ],
+   "width": 0.85,
+   "height": 2.05,
+   "rooms": [
+    "shower",
+    "kitchen"
+   ]
+  }
+ ],
+ "source": {
+  "kind": "upload",
+  "notes": [
+   "No labels with dimensions; sizes estimated from drawing proportions",
+   "Plan has narrow rear wing"
+  ],
+  "confidence": 0.4
+ }
+}

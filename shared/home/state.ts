@@ -67,8 +67,17 @@ function step(state: HomeState, op: Op, ctx: OpContext, index: number): StepResu
       if (!desc) return { state, notes: [`I don't have a ${op.kind.replace(/_/g, ' ')} yet`] }
       const count = op.count ?? 1
       const res = resolveSpot(state, op.at, desc, ctx, { index, count, arrange: op.arrange, seed: ctx.seed, existing: state.items, props: op.set })
-      if ('fail' in res) return { state, notes: [`place: ${res.fail}`] }
+      if ('fail' in res) {
+        // "A big mirror" at 1.5× fits no wall of a door-riddled hall; at its own size it does. Say so, don't refuse.
+        if ((op.set?.scale ?? 1) > 1) {
+          const set = Object.fromEntries(Object.entries(op.set!).filter(([k]) => k !== 'scale')) as Props
+          const again = resolveSpot(state, op.at, desc, ctx, { index, count, arrange: op.arrange, seed: ctx.seed, existing: state.items, props: set })
+          if (!('fail' in again)) return { state: addItems(state, desc, again, set, group), notes: [`place: no room for a bigger ${desc.label}, so it's the usual size${again.note ? `; ${again.note}` : ''}`] }
+        }
+        return { state, notes: [`place: ${res.fail}`] }
+      }
       const notes = res.length < count ? [`only room for ${res.length} of ${count} ${desc.label}s`] : []
+      if (res.note) notes.unshift(`place: ${res.note}`)
       return { state: addItems(state, desc, res, op.set, group), notes }
     }
 
@@ -79,15 +88,20 @@ function step(state: HomeState, op: Op, ctx: OpContext, index: number): StepResu
       let existing = state.items.filter(i => !ids.has(i.id))
       const moved = new Map<string, Item>()
       const notes: string[] = []
+      let why: string | undefined
       // Same kinds move together so a row stays a row; the spot is resolved without the movers in the way.
       for (const list of groupByKind(targets).values()) {
         const desc = kindOfItem(list[0]!)
         if (!desc) continue
-        const res = resolveSpot({ ...state, items: existing }, op.at, desc, ctx, { index, count: list.length, seed: ctx.seed, existing, props: list[0]!.props })
+        // "Move the bed to the south wall" from the hall means the bed's room's south wall, not the hall's.
+        const at = op.at.room || op.at.of || op.at.where === 'gaze' || op.at.where === 'here' ? op.at : { ...op.at, room: list[0]!.room }
+        const res = resolveSpot({ ...state, items: existing }, at, desc, ctx, { index, count: list.length, seed: ctx.seed, existing, props: list[0]!.props })
         if ('fail' in res) {
           notes.push(`move: ${res.fail}`)
           continue
         }
+        if (res.note) notes.push(`move: ${res.note}`)
+        why ??= res.why
         list.forEach((t, i) => {
           const p = res[i]
           if (!p) return
@@ -96,6 +110,16 @@ function step(state: HomeState, op: Op, ctx: OpContext, index: number): StepResu
           existing = [...existing, next]
         })
         if (res.length < list.length) notes.push(`only room to move ${res.length} of ${list.length} ${desc.label}s`)
+      }
+      // A move that lands where the thing already stands is a no-op the player should hear about.
+      const still = [...moved.values()].filter((m) => {
+        const t = targets.find(x => x.id === m.id)!
+        return Math.hypot(t.pos[0] - m.pos[0], t.pos[1] - m.pos[1]) < 0.05 && Math.abs(t.yaw - m.yaw) < 0.05
+      })
+      // A fallback that lands it back where it stood is the original refusal, not "put it on the north wall instead".
+      if (still.length && still.length === moved.size) {
+        if (why) notes.splice(0, notes.length, `move: ${why}`)
+        else notes.push(`move: the ${kindOfItem(still[0]!)?.label ?? still[0]!.kind} is already there`)
       }
       return { state: { ...state, items: state.items.map(i => moved.get(i.id) ?? i) }, notes }
     }
@@ -241,6 +265,7 @@ function furnishRooms(state: HomeState, rooms: Room[], style: Style | null, ctx:
         notes.push(`${room.name}: ${res.fail}`)
         return
       }
+      if (res.note) notes.push(`${room.name}: ${res.note}`)
       s = addItems(s, desc, res, props, group)
     })
     if (style) {
@@ -344,9 +369,18 @@ export function extendLastBatch(state: HomeState, batchId: string, at: number, o
   return { state: s, effects, ops: keep, dropped: [], batch }
 }
 
-/** The genie only claims what happened: a line over a batch that did nothing becomes the reason it didn't. */
+/**
+ * The genie only claims what happened: a line over a batch that did nothing becomes the reason it didn't,
+ * and a line over a batch that only half worked ("Two nightstands, each with a lamp." when one fit) carries
+ * the op's note. Furnish's per-room skips ("Kitchen: no room for…") are routine and stay in the drawer.
+ */
 export function honestSay(text: string, changed: boolean, notes: string[]): string {
-  if (changed || /\b(can't|cannot|couldn't|won't|no|not|nothing|already|yet|only)\b/i.test(text)) return text
+  const hedged = /\b(can't|cannot|couldn't|won't|no|not|nothing|already|yet|only)\b/i.test(text)
+  if (changed) {
+    const partial = notes.find(n => /^(place|move|restyle|remove|surface|goto): |^only room/.test(n))
+    return partial && !hedged ? `${text} (${partial.replace(/^[a-z]+: /, '').replace(/ \(.*\)$/, '')})` : text
+  }
+  if (hedged) return text
   const why = notes.find(n => !/^undid/.test(n))
   return why ? `I couldn't: ${why.replace(/^[a-z]+: /, '')}.` : 'Nothing changed.'
 }
