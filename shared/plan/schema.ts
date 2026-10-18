@@ -152,7 +152,7 @@ export type LoosePlan = z.infer<typeof LoosePlanSchema>
 const FT = 0.3048
 
 /**
- * Loose → strict. Converts feet, drops degenerate rooms (< 1 m²), snaps vertices to 5 cm so shared walls
+ * Loose → strict. Converts feet, drops degenerate rooms (< 0.5 m²), snaps vertices to 5 cm so shared walls
  * coincide, makes every polygon the same winding, assigns ids, fills finishes by room type, and attaches
  * each opening to the two rooms whose edges it touches (or `outside`). Never throws: a plan with no usable
  * room comes back as `{ ok: false, reason }`.
@@ -165,11 +165,14 @@ export function normalizePlan(loose: unknown, source: FloorPlan['source'] = { ki
   const k = lp.units === 'ft' ? FT : 1
   const used = new Set<string>()
   const rooms: Room[] = []
+  /** What the model called each room (id and name) → the id it got, so its `openings[].rooms` resolve. */
+  const idMap = new Map<string, string>()
   for (const r of lp.rooms) {
     let poly = cleanPolygon(r.polygon.filter(p => p.length >= 2 && p.every(Number.isFinite)).map(p => [p[0]! * k, p[1]! * k] as Vec2))
     poly = snapPolygon(poly)
     poly = cleanPolygon(poly)
-    if (poly.length < 3 || area(poly) < 1) {
+    // 0.5 m²: a mech or W/D closet on a real listing is 0.8–1 m² and must survive.
+    if (poly.length < 3 || area(poly) < 0.5) {
       notes.push(`dropped "${r.name}": not a usable room shape`)
       continue
     }
@@ -179,6 +182,8 @@ export function normalizePlan(loose: unknown, source: FloorPlan['source'] = { ki
     let n = 2
     while (used.has(rid)) rid = `${normalizeId(r.id ?? r.name)}_${n++}`
     used.add(rid)
+    if (r.id) idMap.set(normalizeId(r.id), rid)
+    if (!idMap.has(normalizeId(r.name))) idMap.set(normalizeId(r.name), rid)
     const fin = defaultSurfaces(type)
     rooms.push({ id: rid, name: r.name.trim().slice(0, 40) || rid, type, polygon: poly, floor: fin.floor, walls: fin.walls, ceiling: fin.ceiling })
   }
@@ -199,24 +204,49 @@ export function normalizePlan(loose: unknown, source: FloorPlan['source'] = { ki
     const kind: OpeningKind = /win/i.test(o.kind) ? 'window' : /door/i.test(o.kind) ? 'door' : 'opening'
     if (o.at.length < 2 || !o.at.every(Number.isFinite)) continue
     const at: Vec2 = [o.at[0]! * k - minX, o.at[1]! * k - minZ]
-    // Which room edges does it touch? Snap it onto the nearest edge; the two closest rooms (within 30 cm) own it.
-    const touching: { id: string, d: number, point: Vec2 }[] = []
-    for (const r of rooms) {
-      let best = { d: Infinity, point: at }
+    const nearest = (r: Room, p: Vec2) => {
+      let best = { d: Infinity, point: p }
       for (let i = 0; i < r.polygon.length; i++) {
-        const c = closestOnSegment(at, r.polygon[i]!, r.polygon[(i + 1) % r.polygon.length]!)
+        const c = closestOnSegment(p, r.polygon[i]!, r.polygon[(i + 1) % r.polygon.length]!)
         if (c.d < best.d) best = { d: c.d, point: c.point }
       }
-      if (best.d <= 0.3) touching.push({ id: r.id, d: best.d, point: best.point })
+      return best
     }
-    touching.sort((a, b) => a.d - b.d)
-    if (!touching.length) {
-      notes.push(`dropped a ${kind}: not on any wall`)
-      continue
+    // The model's topology (which two rooms a door joins) is more reliable than its coordinates: when it names
+    // a pair we can honour, snap `at` onto the first room's boundary where the second room (or the outside) is
+    // within reach. Otherwise fall back to geometry: the two closest rooms (within 30 cm) own it.
+    let a: { id: string, point: Vec2 } | undefined
+    let b: { id: string } | undefined
+    const named = (o.rooms ?? []).map(n => n === 'outside' ? 'outside' : idMap.get(normalizeId(n)))
+    if (named.length === 2 && named[0] && named[1]) {
+      const [ra, rb] = named[0] === 'outside' ? [named[1], named[0]] : [named[0], named[1]]
+      const roomA = rooms.find(r => r.id === ra)
+      const roomB = rb === 'outside' ? undefined : rooms.find(r => r.id === rb)
+      if (roomA && (rb === 'outside' || roomB)) {
+        const pa = nearest(roomA, at)
+        const reach = roomB ? nearest(roomB, pa.point).d : 0
+        if (pa.d <= 1 && reach <= 0.5) {
+          a = { id: roomA.id, point: pa.point }
+          b = { id: rb! }
+        }
+      }
     }
-    const a = touching[0]!
-    const b = touching[1]
-    const width = Math.min(6, Math.max(0.4, o.width ?? (kind === 'window' ? 1.2 : 0.9)))
+    if (!a) {
+      const touching: { id: string, d: number, point: Vec2 }[] = []
+      for (const r of rooms) {
+        const best = nearest(r, at)
+        if (best.d <= 0.3) touching.push({ id: r.id, d: best.d, point: best.point })
+      }
+      touching.sort((x, y) => x.d - y.d)
+      if (!touching.length) {
+        notes.push(`dropped a ${kind}: not on any wall`)
+        continue
+      }
+      a = touching[0]!
+      b = touching[1]
+    }
+    // Widths share the plan's units, so they convert with the coordinates.
+    const width = Math.min(6, Math.max(0.4, o.width !== undefined ? o.width * k : (kind === 'window' ? 1.2 : 0.9)))
     openings.push({
       id: `${kind}_${oi++}`,
       kind,

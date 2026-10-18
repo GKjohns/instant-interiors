@@ -300,15 +300,15 @@ export const FURNISH: Record<RoomType, FurnishEntry[]> = {
 /** Style words → a palette the furnish op and "make it X" can lean on. Deterministic, no model. */
 export const STYLES: Record<string, { primary: string[], trim: string, walls: string, floor: { color: string, pattern: string } }> = {
   'mid-century': { primary: ['#c9742b', '#2f6a6a', '#b8a04a', '#8a5a3a'], trim: '#5a3a22', walls: '#efe6d6', floor: { color: '#9a6a44', pattern: 'plank' } },
-  scandinavian: { primary: ['#d9d4cc', '#aab7b0', '#c9c0b2', '#e8e2d8'], trim: '#c9b79a', walls: '#f6f3ee', floor: { color: '#d8c6a8', pattern: 'plank' } },
-  industrial: { primary: ['#4a4a4a', '#6b4a3a', '#2b2b2e', '#8a7a6a'], trim: '#1c1a18', walls: '#b8a999', floor: { color: '#8a8a86', pattern: 'concrete' } },
-  coastal: { primary: ['#dfe7ea', '#5a8aa8', '#c9c0b2', '#f4f1ea'], trim: '#e8e2d8', walls: '#eef3f5', floor: { color: '#d8cdb8', pattern: 'plank' } },
-  bohemian: { primary: ['#8c3b3b', '#c9742b', '#6a7a3a', '#b08968'], trim: '#5a3a22', walls: '#efe3cf', floor: { color: '#a67f5c', pattern: 'herringbone' } },
-  traditional: { primary: ['#5a3a3a', '#2f4a6a', '#8a6a4a', '#c9b79a'], trim: '#3b2618', walls: '#e4dccd', floor: { color: '#7a5a3a', pattern: 'herringbone' } },
-  minimalist: { primary: ['#e8e2d8', '#d9d9d6', '#c9c0b2', '#f4f4f2'], trim: '#b8b8b4', walls: '#f7f6f2', floor: { color: '#c9c3b8', pattern: 'concrete' } },
-  farmhouse: { primary: ['#eae6dd', '#8a6a4a', '#c9c0b2', '#5a6a7a'], trim: '#5a4030', walls: '#f1ede4', floor: { color: '#9a7a58', pattern: 'plank' } },
+  'scandinavian': { primary: ['#d9d4cc', '#aab7b0', '#c9c0b2', '#e8e2d8'], trim: '#c9b79a', walls: '#f6f3ee', floor: { color: '#d8c6a8', pattern: 'plank' } },
+  'industrial': { primary: ['#4a4a4a', '#6b4a3a', '#2b2b2e', '#8a7a6a'], trim: '#1c1a18', walls: '#b8a999', floor: { color: '#8a8a86', pattern: 'concrete' } },
+  'coastal': { primary: ['#dfe7ea', '#5a8aa8', '#c9c0b2', '#f4f1ea'], trim: '#e8e2d8', walls: '#eef3f5', floor: { color: '#d8cdb8', pattern: 'plank' } },
+  'bohemian': { primary: ['#8c3b3b', '#c9742b', '#6a7a3a', '#b08968'], trim: '#5a3a22', walls: '#efe3cf', floor: { color: '#a67f5c', pattern: 'herringbone' } },
+  'traditional': { primary: ['#5a3a3a', '#2f4a6a', '#8a6a4a', '#c9b79a'], trim: '#3b2618', walls: '#e4dccd', floor: { color: '#7a5a3a', pattern: 'herringbone' } },
+  'minimalist': { primary: ['#e8e2d8', '#d9d9d6', '#c9c0b2', '#f4f4f2'], trim: '#b8b8b4', walls: '#f7f6f2', floor: { color: '#c9c3b8', pattern: 'concrete' } },
+  'farmhouse': { primary: ['#eae6dd', '#8a6a4a', '#c9c0b2', '#5a6a7a'], trim: '#5a4030', walls: '#f1ede4', floor: { color: '#9a7a58', pattern: 'plank' } },
   'art deco': { primary: ['#1c3a3a', '#c9a24a', '#5a2b4a', '#2b2b2e'], trim: '#c9a24a', walls: '#2b3a3a', floor: { color: '#1c1a18', pattern: 'checker' } },
-  japandi: { primary: ['#c9b79a', '#5a5a52', '#d8d2c6', '#8a7a6a'], trim: '#3b3129', walls: '#f1ede4', floor: { color: '#c9b088', pattern: 'plank' } }
+  'japandi': { primary: ['#c9b79a', '#5a5a52', '#d8d2c6', '#8a7a6a'], trim: '#3b3129', walls: '#f1ede4', floor: { color: '#c9b088', pattern: 'plank' } }
 }
 
 export function styleOf(word?: string): (typeof STYLES)[string] | null {

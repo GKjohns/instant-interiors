@@ -1,0 +1,693 @@
+{
+  "file": "wiki_2br_tyneside.png",
+  "hint": null,
+  "ok": true,
+  "path": "object",
+  "ms": 6352,
+  "costUsd": 0.017892,
+  "model": "sonnet",
+  "score": null,
+  "tiling": {
+    "coverage": 0.798780487804878,
+    "overlaps": 0,
+    "pairs": []
+  },
+  "loose": {
+    "name": "2 bed terraced ground floor",
+    "units": "m",
+    "north": 0,
+    "rooms": [
+      {
+        "id": "shower",
+        "name": "Shower",
+        "type": "bathroom",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            1.9,
+            0
+          ],
+          [
+            1.9,
+            1.5
+          ],
+          [
+            0,
+            1.5
+          ]
+        ]
+      },
+      {
+        "id": "kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            0,
+            1.5
+          ],
+          [
+            1.9,
+            1.5
+          ],
+          [
+            1.9,
+            3
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      },
+      {
+        "id": "lounge",
+        "name": "Lounge",
+        "type": "living",
+        "polygon": [
+          [
+            0,
+            3
+          ],
+          [
+            2.5,
+            3
+          ],
+          [
+            2.5,
+            5
+          ],
+          [
+            0,
+            5
+          ]
+        ]
+      },
+      {
+        "id": "bedroom_2",
+        "name": "Bedroom 2",
+        "type": "bedroom",
+        "polygon": [
+          [
+            2.5,
+            3
+          ],
+          [
+            4.1,
+            3
+          ],
+          [
+            4.1,
+            5
+          ],
+          [
+            2.5,
+            5
+          ]
+        ]
+      },
+      {
+        "id": "bedroom_1",
+        "name": "Bedroom 1",
+        "type": "bedroom",
+        "polygon": [
+          [
+            0,
+            5
+          ],
+          [
+            2.5,
+            5
+          ],
+          [
+            2.5,
+            8
+          ],
+          [
+            0,
+            8
+          ]
+        ]
+      },
+      {
+        "id": "hallway",
+        "name": "Hallway",
+        "type": "hall",
+        "polygon": [
+          [
+            2.5,
+            5
+          ],
+          [
+            3.1,
+            5
+          ],
+          [
+            3.1,
+            8
+          ],
+          [
+            2.5,
+            8
+          ]
+        ]
+      },
+      {
+        "id": "upstairs_hallway",
+        "name": "Upstairs Hallway and stairs up",
+        "type": "hall",
+        "polygon": [
+          [
+            3.1,
+            5
+          ],
+          [
+            4.1,
+            5
+          ],
+          [
+            4.1,
+            8
+          ],
+          [
+            3.1,
+            8
+          ]
+        ]
+      }
+    ],
+    "openings": [
+      {
+        "kind": "door",
+        "at": [
+          0.9,
+          3
+        ],
+        "width": 0.8,
+        "rooms": [
+          "kitchen",
+          "lounge"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          2.5,
+          4.1
+        ],
+        "width": 0.8,
+        "rooms": [
+          "lounge",
+          "hallway"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          2.5,
+          5.8
+        ],
+        "width": 0.8,
+        "rooms": [
+          "bedroom_1",
+          "hallway"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          2.9,
+          5
+        ],
+        "width": 0.8,
+        "rooms": [
+          "bedroom_2",
+          "hallway"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          2.1,
+          3
+        ],
+        "width": 0.8,
+        "rooms": [
+          "bedroom_2",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          1,
+          8
+        ],
+        "width": 1.5,
+        "rooms": [
+          "bedroom_1",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          1.9,
+          0.9
+        ],
+        "width": 0.7,
+        "rooms": [
+          "shower",
+          "outside"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          2.7,
+          8
+        ],
+        "width": 0.9,
+        "rooms": [
+          "hallway",
+          "outside"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          3.6,
+          8
+        ],
+        "width": 0.9,
+        "rooms": [
+          "upstairs_hallway",
+          "outside"
+        ]
+      }
+    ],
+    "confidence": 0.4,
+    "notes": [
+      "No dimension labels; sizes estimated from drawing proportions",
+      "Layout simplified to rectangles"
+    ]
+  },
+  "plan": {
+    "id": "2_bed_terraced_ground_floor",
+    "name": "2 bed terraced ground floor",
+    "ceiling": 2.7,
+    "north": 0,
+    "rooms": [
+      {
+        "id": "shower",
+        "name": "Shower",
+        "type": "bathroom",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            1.9,
+            0
+          ],
+          [
+            1.9,
+            1.5
+          ],
+          [
+            0,
+            1.5
+          ]
+        ],
+        "floor": {
+          "color": "#d8d8d4",
+          "pattern": "checker",
+          "accent": "#8a8f94"
+        },
+        "walls": {
+          "color": "#dfe7ea",
+          "pattern": "subway",
+          "accent": "#c9d3d7"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "kitchen",
+        "name": "Kitchen",
+        "type": "kitchen",
+        "polygon": [
+          [
+            0,
+            1.5
+          ],
+          [
+            1.9,
+            1.5
+          ],
+          [
+            1.9,
+            3
+          ],
+          [
+            0,
+            3
+          ]
+        ],
+        "floor": {
+          "color": "#c9c3b8",
+          "pattern": "tile",
+          "accent": "#b8b1a4"
+        },
+        "walls": {
+          "color": "#eee9df",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "lounge",
+        "name": "Lounge",
+        "type": "living",
+        "polygon": [
+          [
+            0,
+            3
+          ],
+          [
+            2.5,
+            3
+          ],
+          [
+            2.5,
+            5
+          ],
+          [
+            0,
+            5
+          ]
+        ],
+        "floor": {
+          "color": "#b48f6b",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#ece5d8",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "bedroom_2",
+        "name": "Bedroom 2",
+        "type": "bedroom",
+        "polygon": [
+          [
+            2.5,
+            3
+          ],
+          [
+            4.1,
+            3
+          ],
+          [
+            4.1,
+            5
+          ],
+          [
+            2.5,
+            5
+          ]
+        ],
+        "floor": {
+          "color": "#b08d6a",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#e9e1d4",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "bedroom_1",
+        "name": "Bedroom 1",
+        "type": "bedroom",
+        "polygon": [
+          [
+            0,
+            5
+          ],
+          [
+            2.5,
+            5
+          ],
+          [
+            2.5,
+            8
+          ],
+          [
+            0,
+            8
+          ]
+        ],
+        "floor": {
+          "color": "#b08d6a",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#e9e1d4",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "hallway",
+        "name": "Hallway",
+        "type": "hall",
+        "polygon": [
+          [
+            2.5,
+            5
+          ],
+          [
+            3.1,
+            5
+          ],
+          [
+            3.1,
+            8
+          ],
+          [
+            2.5,
+            8
+          ]
+        ],
+        "floor": {
+          "color": "#ad8b66",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#ece6da",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "upstairs_hallway",
+        "name": "Upstairs Hallway and stairs up",
+        "type": "hall",
+        "polygon": [
+          [
+            3.1,
+            5
+          ],
+          [
+            4.1,
+            5
+          ],
+          [
+            4.1,
+            8
+          ],
+          [
+            3.1,
+            8
+          ]
+        ],
+        "floor": {
+          "color": "#ad8b66",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#ece6da",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      }
+    ],
+    "openings": [
+      {
+        "id": "door_1",
+        "kind": "door",
+        "at": [
+          0.9,
+          3
+        ],
+        "width": 0.8,
+        "height": 2.05,
+        "rooms": [
+          "kitchen",
+          "lounge"
+        ]
+      },
+      {
+        "id": "door_2",
+        "kind": "door",
+        "at": [
+          2.5,
+          4.1
+        ],
+        "width": 0.8,
+        "height": 2.05,
+        "rooms": [
+          "lounge",
+          "bedroom_2"
+        ]
+      },
+      {
+        "id": "door_3",
+        "kind": "door",
+        "at": [
+          2.5,
+          5.8
+        ],
+        "width": 0.8,
+        "height": 2.05,
+        "rooms": [
+          "bedroom_1",
+          "hallway"
+        ]
+      },
+      {
+        "id": "door_4",
+        "kind": "door",
+        "at": [
+          2.9,
+          5
+        ],
+        "width": 0.8,
+        "height": 2.05,
+        "rooms": [
+          "bedroom_2",
+          "hallway"
+        ]
+      },
+      {
+        "id": "window_5",
+        "kind": "window",
+        "at": [
+          2.5,
+          3
+        ],
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "bedroom_2",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_6",
+        "kind": "window",
+        "at": [
+          1,
+          8
+        ],
+        "width": 1.5,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "bedroom_1",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_7",
+        "kind": "window",
+        "at": [
+          1.9,
+          0.9
+        ],
+        "width": 0.7,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "shower",
+          "outside"
+        ]
+      },
+      {
+        "id": "door_8",
+        "kind": "door",
+        "at": [
+          2.7,
+          8
+        ],
+        "width": 0.9,
+        "height": 2.05,
+        "rooms": [
+          "hallway",
+          "outside"
+        ]
+      },
+      {
+        "id": "door_9",
+        "kind": "door",
+        "at": [
+          3.6,
+          8
+        ],
+        "width": 0.9,
+        "height": 2.05,
+        "rooms": [
+          "upstairs_hallway",
+          "outside"
+        ]
+      }
+    ],
+    "source": {
+      "kind": "upload",
+      "notes": [
+        "No dimension labels; sizes estimated from drawing proportions",
+        "Layout simplified to rectangles"
+      ],
+      "confidence": 0.4
+    }
+  }
+}

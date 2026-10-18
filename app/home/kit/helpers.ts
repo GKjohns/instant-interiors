@@ -1,53 +1,44 @@
 /**
- * Shared bits for the kit builders. Every mesh is tagged with a material slot so `modify` can recolour
- * any kind the same way: 'primary' takes `color`, 'trim' takes `trim`, 'glow' is emissive and takes `glow`.
+ * Shared bits for the kit builders (lifted from Conjure, minus its palette snapping: a home keeps the
+ * colours you ask for). Every mesh is tagged with a material slot so index.ts can recolour any kind the
+ * same way: 'primary' takes `color`, 'trim' takes `trim`, 'glow' is the warm light itself.
+ *
+ * userData the renderer reads:
+ *   mesh.userData.slot            'primary' | 'trim' | 'glow'
+ *   mesh.userData.baseColor       the builder's colour, the fallback after a recolour is undone
+ *   mesh.userData.baseGlow        the builder's emissiveIntensity; `lit` scales it
+ *   mesh.userData.emissive        true when the part's emissive follows `lit` (bulbs, shades, the TV screen)
+ *   mesh.userData.emissiveFollows k: emissive colour = the part's own colour × k (a shade lit from inside)
+ *   mesh.userData.bulb            true on the one part a pooled point light should sit at
  */
 import * as THREE from 'three'
-import type { Slot } from '#shared/world/ops'
-import { stylize } from '#shared/world/palette'
-import type { PaletteRole } from '#shared/world/palette'
 
-/** Props a builder may read. Most read nothing (colour is applied afterwards through the slots). */
-export interface BuildProps {
-  floors?: number
-  text?: string
-  length?: number
-  width?: number
-  color?: string
-  /** People: the role preset to dress for and the entity id that seeds their looks (skin, hair, height). */
-  role?: string
-  seed?: string
-  name?: string
+export type Slot = 'primary' | 'trim' | 'glow'
+
+/** What a builder receives: the catalog footprint/height, or the props' overrides for sized kinds. */
+export interface Dims {
+  length: number
+  width: number
+  height: number
 }
-export type Build = (props: BuildProps) => THREE.Group
+export type Build = (dims: Dims) => THREE.Group
 
-/**
- * Every colour a builder, a model or a forged part picks is snapped onto the curated palette here
- * (shared/world/palette.ts, art direction §3.2): the material boundary, so kit, learned kinds and forge
- * output all share one palette. The shading itself is global (style/toon.ts).
- */
-export function snapColor(color: THREE.ColorRepresentation, role: PaletteRole = 'surface'): THREE.Color {
-  const c = new THREE.Color(color)
-  return c.set(stylize('#' + c.getHexString(), role))
+/** Physical rather than Standard so the material presets can use sheen (velvet, fabric) and clearcoat. */
+export function mat(color: THREE.ColorRepresentation, opts: THREE.MeshPhysicalMaterialParameters = {}): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({ color, roughness: 0.8, ...opts })
 }
 
-export function mat(color: THREE.ColorRepresentation, opts: THREE.MeshStandardMaterialParameters = {}, role: PaletteRole = 'surface'): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color: snapColor(color, role), roughness: 0.8, ...opts })
+export function glowMat(color: THREE.ColorRepresentation, intensity = 1.6): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({ color, emissive: color, emissiveIntensity: intensity, roughness: 0.5 })
 }
 
-export function glowMat(color: THREE.ColorRepresentation, intensity = 1.6): THREE.MeshStandardMaterial {
-  const c = snapColor(color, 'glow')
-  return new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: intensity, roughness: 0.5 })
-}
-
-/** A shadow-casting mesh in a slot. Slot-less meshes keep their own colour forever (door, windows). */
+/** A shadow-casting mesh in a slot. Slot-less meshes keep their own colour forever (book spines, a screen). */
 export function mesh(geo: THREE.BufferGeometry, material: THREE.Material, slot: Slot | null, x = 0, y = 0, z = 0): THREE.Mesh {
   const m = new THREE.Mesh(geo, material)
   m.position.set(x, y, z)
   m.castShadow = true
   m.receiveShadow = true
   if (slot) m.userData.slot = slot
-  // The colour the builder chose is the default a recolour falls back to (e.g. after undo).
   const std = material as THREE.MeshStandardMaterial
   if (std.color) m.userData.baseColor = '#' + std.color.getHexString()
   if (std.emissiveIntensity !== undefined) m.userData.baseGlow = std.emissiveIntensity
@@ -60,33 +51,15 @@ export function group(...children: THREE.Object3D[]): THREE.Group {
   return g
 }
 
-/** Text on a transparent canvas, for blob labels and signs. */
-export function textTexture(text: string, color = '#c9c2ff', glow = true): THREE.CanvasTexture {
-  const c = document.createElement('canvas')
-  c.width = 512
-  c.height = 128
-  const g = c.getContext('2d')!
-  g.clearRect(0, 0, c.width, c.height)
-  let size = 64
-  g.font = `600 ${size}px Geist, system-ui, sans-serif`
-  while (g.measureText(text).width > 480 && size > 24) {
-    size -= 4
-    g.font = `600 ${size}px Geist, system-ui, sans-serif`
-  }
-  g.textAlign = 'center'
-  g.textBaseline = 'middle'
-  if (glow) {
-    g.shadowColor = color
-    g.shadowBlur = 18
-  }
-  g.fillStyle = color
-  g.fillText(text, 256, 66)
-  const t = new THREE.CanvasTexture(c)
-  t.colorSpace = THREE.SRGBColorSpace
-  return t
+/** Mark a mesh whose emissive should follow its slot colour (lamp shades), scaled down by `k`, and `lit`. */
+export function emissiveFollows(m: THREE.Mesh, k = 1): THREE.Mesh {
+  m.userData.emissiveFollows = k
+  m.userData.emissive = true
+  m.castShadow = false
+  return m
 }
 
-/** Deterministic little rng for builders (book colours, lit windows), so a rebuild looks the same. */
+/** Deterministic little rng for builders (book colours, leaf placement), so a rebuild looks the same. */
 export function seeded(seed: string | number): () => number {
   let h = 2166136261
   for (const ch of String(seed)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619)
@@ -100,13 +73,29 @@ export function seeded(seed: string | number): () => number {
   }
 }
 
+/** A canvas, or null headless (kit-check and tests build without a DOM; textures are decoration). */
+export function canvas(size: number): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  return c
+}
+
+function wrap(c: HTMLCanvasElement, repeatX: number, repeatY: number): THREE.CanvasTexture {
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.repeat.set(repeatX, repeatY)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 4
+  return t
+}
+
 let planks: HTMLCanvasElement | null = null
 /** A light plank pattern (the material colour tints it), repeated per metre by the caller. */
-export function plankTexture(repeatX: number, repeatY: number): THREE.CanvasTexture {
+export function plankTexture(repeatX: number, repeatY: number): THREE.CanvasTexture | null {
   if (!planks) {
-    planks = document.createElement('canvas')
-    planks.width = 256
-    planks.height = 256
+    planks = canvas(256)
+    if (!planks) return null
     const g = planks.getContext('2d')!
     const rand = seeded('planks')
     for (let row = 0; row < 8; row++) {
@@ -124,44 +113,51 @@ export function plankTexture(repeatX: number, repeatY: number): THREE.CanvasText
       g.fillRect(0, row * 32 + 31, 256, 1)
     }
   }
-  const t = new THREE.CanvasTexture(planks)
-  t.wrapS = t.wrapT = THREE.RepeatWrapping
-  t.repeat.set(repeatX, repeatY)
-  t.colorSpace = THREE.SRGBColorSpace
-  t.anisotropy = 4
-  return t
+  return wrap(planks, repeatX, repeatY)
 }
 
-/** Sign text: white glyphs with a soft halo, so the material colour tints it like neon. */
-export function neonTexture(text: string): THREE.CanvasTexture {
-  const c = document.createElement('canvas')
-  c.width = 1024
-  c.height = 256
-  const g = c.getContext('2d')!
-  let size = 150
-  const font = (n: number) => `700 ${n}px "Avenir Next Condensed", "Arial Narrow", system-ui, sans-serif`
-  g.font = font(size)
-  while (g.measureText(text).width > 940 && size > 40) {
-    size -= 6
-    g.font = font(size)
+let rugCanvas: HTMLCanvasElement | null = null
+/** A pale diamond lattice over a light field: tinted by the rug colour it reads as a woven pattern, not a slab. */
+export function rugTexture(repeatX: number, repeatY: number): THREE.CanvasTexture | null {
+  if (!rugCanvas) {
+    rugCanvas = canvas(256)
+    if (!rugCanvas) return null
+    const g = rugCanvas.getContext('2d')!
+    g.fillStyle = '#e4e4e4'
+    g.fillRect(0, 0, 256, 256)
+    const rand = seeded('rug')
+    for (let i = 0; i < 2600; i++) {
+      const v = 200 + Math.floor(rand() * 55)
+      g.fillStyle = `rgba(${v},${v},${v},0.5)`
+      g.fillRect(rand() * 256, rand() * 256, 2, 2)
+    }
+    g.strokeStyle = 'rgba(255,255,255,0.55)'
+    g.lineWidth = 3
+    for (let i = -4; i < 5; i++) {
+      g.beginPath()
+      g.moveTo(i * 64, 0)
+      g.lineTo(i * 64 + 256, 256)
+      g.moveTo(i * 64 + 256, 0)
+      g.lineTo(i * 64, 256)
+      g.stroke()
+    }
+    g.fillStyle = 'rgba(60,40,30,0.35)'
+    for (let x = 32; x < 256; x += 64) for (let y = 32; y < 256; y += 64) g.fillRect(x - 5, y - 5, 10, 10)
   }
+  return wrap(rugCanvas, repeatX, repeatY)
+}
+
+/** Text on a transparent canvas (the clock face, a spine label). */
+export function textTexture(text: string, color = '#2b2b2e'): THREE.CanvasTexture | null {
+  const c = canvas(256)
+  if (!c) return null
+  const g = c.getContext('2d')!
+  g.font = '600 48px Geist, system-ui, sans-serif'
   g.textAlign = 'center'
   g.textBaseline = 'middle'
-  g.fillStyle = '#ffffff'
-  for (const blur of [42, 18]) {
-    g.shadowColor = 'rgba(255,255,255,0.9)'
-    g.shadowBlur = blur
-    g.fillText(text, 512, 132)
-  }
-  g.shadowBlur = 0
-  g.fillText(text, 512, 132)
+  g.fillStyle = color
+  g.fillText(text, 128, 128)
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   return t
-}
-
-/** Mark a mesh whose emissive should follow its slot colour (neon, lamp shades), scaled down by `k`. */
-export function emissiveFollows(m: THREE.Mesh, k = 1): THREE.Mesh {
-  m.userData.emissiveFollows = k
-  return m
 }

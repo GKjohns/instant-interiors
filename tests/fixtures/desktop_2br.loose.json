@@ -1,0 +1,376 @@
+{
+  "name": "2 bed / 2 bath",
+  "units": "m",
+  "north": 0,
+  "rooms": [
+    {
+      "id": "bedroom_1",
+      "name": "Bedroom 1",
+      "type": "bedroom",
+      "polygon": [
+        [
+          0,
+          0
+        ],
+        [
+          3.5,
+          0
+        ],
+        [
+          3.5,
+          5.2
+        ],
+        [
+          0,
+          5.2
+        ]
+      ]
+    },
+    {
+      "id": "bath_1",
+      "name": "Bath",
+      "type": "bathroom",
+      "polygon": [
+        [
+          0,
+          5.2
+        ],
+        [
+          3.5,
+          5.2
+        ],
+        [
+          3.5,
+          7.4
+        ],
+        [
+          0,
+          7.4
+        ]
+      ]
+    },
+    {
+      "id": "living",
+      "name": "Living/Dining",
+      "type": "living",
+      "polygon": [
+        [
+          3.5,
+          0
+        ],
+        [
+          6.95,
+          0
+        ],
+        [
+          6.95,
+          5.15
+        ],
+        [
+          3.5,
+          5.15
+        ]
+      ]
+    },
+    {
+      "id": "kitchen",
+      "name": "Kitchen",
+      "type": "kitchen",
+      "polygon": [
+        [
+          3.5,
+          5.15
+        ],
+        [
+          6.95,
+          5.15
+        ],
+        [
+          6.95,
+          7.4
+        ],
+        [
+          3.5,
+          7.4
+        ]
+      ]
+    },
+    {
+      "id": "balcony",
+      "name": "Inset Balcony",
+      "type": "balcony",
+      "polygon": [
+        [
+          6.95,
+          0
+        ],
+        [
+          10.35,
+          0
+        ],
+        [
+          10.35,
+          1.4
+        ],
+        [
+          6.95,
+          1.4
+        ]
+      ]
+    },
+    {
+      "id": "bedroom_2",
+      "name": "Bedroom 2",
+      "type": "bedroom",
+      "polygon": [
+        [
+          6.95,
+          1.4
+        ],
+        [
+          10.35,
+          1.4
+        ],
+        [
+          10.35,
+          4.5
+        ],
+        [
+          6.95,
+          4.5
+        ]
+      ]
+    },
+    {
+      "id": "hall",
+      "name": "Hall",
+      "type": "hall",
+      "polygon": [
+        [
+          6.95,
+          4.5
+        ],
+        [
+          10.35,
+          4.5
+        ],
+        [
+          10.35,
+          5.6
+        ],
+        [
+          6.95,
+          5.6
+        ]
+      ]
+    },
+    {
+      "id": "mech",
+      "name": "Mech.",
+      "type": "other",
+      "polygon": [
+        [
+          6.95,
+          5.6
+        ],
+        [
+          8,
+          5.6
+        ],
+        [
+          8,
+          6.4
+        ],
+        [
+          6.95,
+          6.4
+        ]
+      ]
+    },
+    {
+      "id": "wd",
+      "name": "W/D",
+      "type": "laundry",
+      "polygon": [
+        [
+          6.95,
+          6.4
+        ],
+        [
+          8,
+          6.4
+        ],
+        [
+          8,
+          7.4
+        ],
+        [
+          6.95,
+          7.4
+        ]
+      ]
+    },
+    {
+      "id": "bath_2",
+      "name": "Bath 2",
+      "type": "bathroom",
+      "polygon": [
+        [
+          8,
+          5.6
+        ],
+        [
+          10.35,
+          5.6
+        ],
+        [
+          10.35,
+          7.4
+        ],
+        [
+          8,
+          7.4
+        ]
+      ]
+    }
+  ],
+  "openings": [
+    {
+      "kind": "door",
+      "at": [
+        3.5,
+        4.9
+      ],
+      "width": 0.85,
+      "rooms": [
+        "bedroom_1",
+        "living"
+      ]
+    },
+    {
+      "kind": "door",
+      "at": [
+        2,
+        5.2
+      ],
+      "width": 0.8,
+      "rooms": [
+        "bedroom_1",
+        "bath_1"
+      ]
+    },
+    {
+      "kind": "door",
+      "at": [
+        3.5,
+        6.3
+      ],
+      "width": 0.85,
+      "rooms": [
+        "bath_1",
+        "kitchen"
+      ]
+    },
+    {
+      "kind": "door",
+      "at": [
+        8.6,
+        4.5
+      ],
+      "width": 0.85,
+      "rooms": [
+        "bedroom_2",
+        "hall"
+      ]
+    },
+    {
+      "kind": "door",
+      "at": [
+        9.2,
+        5.6
+      ],
+      "width": 0.85,
+      "rooms": [
+        "hall",
+        "bath_2"
+      ]
+    },
+    {
+      "kind": "door",
+      "at": [
+        6.95,
+        4.8
+      ],
+      "width": 0.7,
+      "rooms": [
+        "living",
+        "hall"
+      ]
+    },
+    {
+      "kind": "door",
+      "at": [
+        5.2,
+        7.4
+      ],
+      "width": 0.9,
+      "rooms": [
+        "kitchen",
+        "outside"
+      ]
+    },
+    {
+      "kind": "window",
+      "at": [
+        1.75,
+        0
+      ],
+      "width": 1.5,
+      "rooms": [
+        "bedroom_1",
+        "outside"
+      ]
+    },
+    {
+      "kind": "window",
+      "at": [
+        5.2,
+        0
+      ],
+      "width": 2,
+      "rooms": [
+        "living",
+        "outside"
+      ]
+    },
+    {
+      "kind": "door",
+      "at": [
+        6.95,
+        0.7
+      ],
+      "width": 0.8,
+      "rooms": [
+        "living",
+        "balcony"
+      ]
+    },
+    {
+      "kind": "window",
+      "at": [
+        8.9,
+        1.4
+      ],
+      "width": 1.5,
+      "rooms": [
+        "bedroom_2",
+        "balcony"
+      ]
+    }
+  ],
+  "confidence": 0.5,
+  "notes": [
+    "Wall lines estimated from drawing proportions",
+    "Closet and bath depths guessed"
+  ]
+}

@@ -1,0 +1,688 @@
+{
+  "file": "wiki_2br_hk_poster.jpg",
+  "hint": null,
+  "ok": true,
+  "path": "object",
+  "ms": 9449,
+  "costUsd": 0.020604,
+  "model": "sonnet",
+  "score": null,
+  "tiling": {
+    "coverage": 0.7184920634920636,
+    "overlaps": 1,
+    "pairs": [
+      "living×dining 0.6m²"
+    ]
+  },
+  "loose": {
+    "name": "Two Bedrooms Unit E Tower 2",
+    "units": "m",
+    "north": 0,
+    "rooms": [
+      {
+        "id": "bedroom_1",
+        "name": "睡房",
+        "type": "bedroom",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            2.6,
+            0
+          ],
+          [
+            2.6,
+            3.1
+          ],
+          [
+            0,
+            3.1
+          ]
+        ]
+      },
+      {
+        "id": "bedroom_2",
+        "name": "睡房",
+        "type": "bedroom",
+        "polygon": [
+          [
+            2.6,
+            0
+          ],
+          [
+            4.75,
+            0
+          ],
+          [
+            4.75,
+            3.1
+          ],
+          [
+            2.6,
+            3.1
+          ]
+        ]
+      },
+      {
+        "id": "living",
+        "name": "客廳",
+        "type": "living",
+        "polygon": [
+          [
+            4.75,
+            0
+          ],
+          [
+            7.5,
+            0
+          ],
+          [
+            7.5,
+            2.9
+          ],
+          [
+            4.75,
+            2.9
+          ],
+          [
+            4.75,
+            3.1
+          ],
+          [
+            4.75,
+            0
+          ]
+        ]
+      },
+      {
+        "id": "dining",
+        "name": "飯廳",
+        "type": "dining",
+        "polygon": [
+          [
+            4.75,
+            2.9
+          ],
+          [
+            7.5,
+            2.9
+          ],
+          [
+            7.5,
+            5.4
+          ],
+          [
+            4.75,
+            5.4
+          ]
+        ]
+      },
+      {
+        "id": "bath",
+        "name": "浴室",
+        "type": "bathroom",
+        "polygon": [
+          [
+            2.6,
+            3.1
+          ],
+          [
+            4.75,
+            3.1
+          ],
+          [
+            4.75,
+            5
+          ],
+          [
+            2.6,
+            5
+          ]
+        ]
+      },
+      {
+        "id": "ac_platform",
+        "name": "冷氣機平台",
+        "type": "balcony",
+        "polygon": [
+          [
+            0,
+            3.1
+          ],
+          [
+            2.6,
+            3.1
+          ],
+          [
+            2.6,
+            3.9
+          ],
+          [
+            0,
+            3.9
+          ]
+        ]
+      },
+      {
+        "id": "kitchen",
+        "name": "廚房",
+        "type": "kitchen",
+        "polygon": [
+          [
+            4.75,
+            5.4
+          ],
+          [
+            7.5,
+            5.4
+          ],
+          [
+            7.5,
+            8.4
+          ],
+          [
+            4.75,
+            8.4
+          ]
+        ]
+      },
+      {
+        "id": "utility",
+        "name": "工作平台",
+        "type": "balcony",
+        "polygon": [
+          [
+            3.9,
+            5.9
+          ],
+          [
+            4.75,
+            5.9
+          ],
+          [
+            4.75,
+            7.4
+          ],
+          [
+            3.9,
+            7.4
+          ]
+        ]
+      }
+    ],
+    "openings": [
+      {
+        "kind": "door",
+        "at": [
+          4.75,
+          2.3
+        ],
+        "width": 0.85,
+        "rooms": [
+          "bedroom_2",
+          "living"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          3.6,
+          3.1
+        ],
+        "width": 0.8,
+        "rooms": [
+          "bedroom_1",
+          "bath"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          4.75,
+          4.2
+        ],
+        "width": 0.8,
+        "rooms": [
+          "bath",
+          "dining"
+        ]
+      },
+      {
+        "kind": "door",
+        "at": [
+          7.5,
+          7
+        ],
+        "width": 0.8,
+        "rooms": [
+          "kitchen",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          1.3,
+          0
+        ],
+        "width": 1.8,
+        "rooms": [
+          "bedroom_1",
+          "outside"
+        ]
+      },
+      {
+        "kind": "window",
+        "at": [
+          3.7,
+          0
+        ],
+        "width": 1.6,
+        "rooms": [
+          "bedroom_2",
+          "outside"
+        ]
+      }
+    ],
+    "confidence": 0.4,
+    "notes": [
+      "Rough read of a photographed plan; the layout is simplified and some rooms are approximate",
+      "Utility platform and AC platform are guessed as balcony types"
+    ]
+  },
+  "plan": {
+    "id": "two_bedrooms_unit_e_tower_2",
+    "name": "Two Bedrooms Unit E Tower 2",
+    "ceiling": 2.7,
+    "north": 0,
+    "rooms": [
+      {
+        "id": "bedroom_1",
+        "name": "睡房",
+        "type": "bedroom",
+        "polygon": [
+          [
+            0,
+            0
+          ],
+          [
+            2.6,
+            0
+          ],
+          [
+            2.6,
+            3.1
+          ],
+          [
+            0,
+            3.1
+          ]
+        ],
+        "floor": {
+          "color": "#b08d6a",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#e9e1d4",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "bedroom_2",
+        "name": "睡房",
+        "type": "bedroom",
+        "polygon": [
+          [
+            2.6,
+            0
+          ],
+          [
+            4.75,
+            0
+          ],
+          [
+            4.75,
+            3.1
+          ],
+          [
+            2.6,
+            3.1
+          ]
+        ],
+        "floor": {
+          "color": "#b08d6a",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#e9e1d4",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "living",
+        "name": "客廳",
+        "type": "living",
+        "polygon": [
+          [
+            4.75,
+            0
+          ],
+          [
+            7.5,
+            0
+          ],
+          [
+            7.5,
+            2.9
+          ],
+          [
+            4.75,
+            2.9
+          ],
+          [
+            4.75,
+            3.1
+          ]
+        ],
+        "floor": {
+          "color": "#b48f6b",
+          "pattern": "plank"
+        },
+        "walls": {
+          "color": "#ece5d8",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "dining",
+        "name": "飯廳",
+        "type": "dining",
+        "polygon": [
+          [
+            4.75,
+            2.9
+          ],
+          [
+            7.5,
+            2.9
+          ],
+          [
+            7.5,
+            5.4
+          ],
+          [
+            4.75,
+            5.4
+          ]
+        ],
+        "floor": {
+          "color": "#a67f5c",
+          "pattern": "herringbone"
+        },
+        "walls": {
+          "color": "#e4dccd",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "bath",
+        "name": "浴室",
+        "type": "bathroom",
+        "polygon": [
+          [
+            2.6,
+            3.1
+          ],
+          [
+            4.75,
+            3.1
+          ],
+          [
+            4.75,
+            5
+          ],
+          [
+            2.6,
+            5
+          ]
+        ],
+        "floor": {
+          "color": "#d8d8d4",
+          "pattern": "checker",
+          "accent": "#8a8f94"
+        },
+        "walls": {
+          "color": "#dfe7ea",
+          "pattern": "subway",
+          "accent": "#c9d3d7"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "ac_platform",
+        "name": "冷氣機平台",
+        "type": "balcony",
+        "polygon": [
+          [
+            0,
+            3.1
+          ],
+          [
+            2.6,
+            3.1
+          ],
+          [
+            2.6,
+            3.9
+          ],
+          [
+            0,
+            3.9
+          ]
+        ],
+        "floor": {
+          "color": "#a8a39a",
+          "pattern": "concrete"
+        },
+        "walls": {
+          "color": "#cfc8bc",
+          "pattern": "brick",
+          "accent": "#b9a999"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "kitchen",
+        "name": "廚房",
+        "type": "kitchen",
+        "polygon": [
+          [
+            4.75,
+            5.4
+          ],
+          [
+            7.5,
+            5.4
+          ],
+          [
+            7.5,
+            8.4
+          ],
+          [
+            4.75,
+            8.4
+          ]
+        ],
+        "floor": {
+          "color": "#c9c3b8",
+          "pattern": "tile",
+          "accent": "#b8b1a4"
+        },
+        "walls": {
+          "color": "#eee9df",
+          "pattern": "plain"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      },
+      {
+        "id": "utility",
+        "name": "工作平台",
+        "type": "balcony",
+        "polygon": [
+          [
+            3.9,
+            5.9
+          ],
+          [
+            4.75,
+            5.9
+          ],
+          [
+            4.75,
+            7.4
+          ],
+          [
+            3.9,
+            7.4
+          ]
+        ],
+        "floor": {
+          "color": "#a8a39a",
+          "pattern": "concrete"
+        },
+        "walls": {
+          "color": "#cfc8bc",
+          "pattern": "brick",
+          "accent": "#b9a999"
+        },
+        "ceiling": {
+          "color": "#f4f1ea",
+          "pattern": "plain"
+        }
+      }
+    ],
+    "openings": [
+      {
+        "id": "door_1",
+        "kind": "door",
+        "at": [
+          4.75,
+          2.3
+        ],
+        "width": 0.85,
+        "height": 2.05,
+        "rooms": [
+          "bedroom_2",
+          "living"
+        ]
+      },
+      {
+        "id": "door_2",
+        "kind": "door",
+        "at": [
+          2.6,
+          3.1
+        ],
+        "width": 0.8,
+        "height": 2.05,
+        "rooms": [
+          "bedroom_1",
+          "bath"
+        ]
+      },
+      {
+        "id": "door_3",
+        "kind": "door",
+        "at": [
+          4.75,
+          4.2
+        ],
+        "width": 0.8,
+        "height": 2.05,
+        "rooms": [
+          "bath",
+          "dining"
+        ]
+      },
+      {
+        "id": "door_4",
+        "kind": "door",
+        "at": [
+          7.5,
+          7
+        ],
+        "width": 0.8,
+        "height": 2.05,
+        "rooms": [
+          "kitchen",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_5",
+        "kind": "window",
+        "at": [
+          1.3,
+          0
+        ],
+        "width": 1.8,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "bedroom_1",
+          "outside"
+        ]
+      },
+      {
+        "id": "window_6",
+        "kind": "window",
+        "at": [
+          3.7,
+          0
+        ],
+        "width": 1.6,
+        "height": 2.1,
+        "sill": 0.9,
+        "rooms": [
+          "bedroom_2",
+          "outside"
+        ]
+      }
+    ],
+    "source": {
+      "kind": "upload",
+      "notes": [
+        "Rough read of a photographed plan; the layout is simplified and some rooms are approximate",
+        "Utility platform and AC platform are guessed as balcony types"
+      ],
+      "confidence": 0.4
+    }
+  }
+}

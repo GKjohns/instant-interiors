@@ -19,6 +19,8 @@ export interface Item {
   pos: Vec2
   /** Radians, three.js convention: 0 faces -z (north / up the drawing), positive turns toward -x (west). */
   yaw: number
+  /** Bottom of the piece above the floor; omitted = on the floor. The anchor's top for a lamp on a nightstand, the hang height for wall pieces, the ceiling for hung fixtures. */
+  y?: number
   props: Props
   /** The batch group it was placed in (`g<n>`), for "last" and group selection. */
   group: string
@@ -49,7 +51,10 @@ export interface Batch {
 }
 
 export interface HomeState {
+  /** The live plan: surface ops write copied rooms here. */
   plan: FloorPlan
+  /** The plan as loaded; replay and undo rebuild from it. */
+  base: FloorPlan
   items: Item[]
   light: Light
   log: Batch[]

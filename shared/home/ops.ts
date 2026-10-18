@@ -92,8 +92,8 @@ export const SpotSchema = z.object({
   /** With where=near (or side alone): the thing to place relative to. */
   of: SelectorSchema.optional(),
   side: z.enum(SIDES).optional(),
-  /** Metres from the anchor (near: the gap from the thing; wall: the gap from the wall). */
-  dist: num(0, 20).optional(),
+  /** Metres from the anchor (near: the gap from the thing; wall: the gap from the wall). Negative tucks a rug under the front of a bed or sofa. */
+  dist: num(-5, 20).optional(),
   facing: z.enum(FACINGS).optional()
 })
 export type Spot = z.infer<typeof SpotSchema>
