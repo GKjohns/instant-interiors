@@ -5,3 +5,6 @@ node_modules
 .env
 .playwright-mcp
 *.log
+
+# A real listing screenshot used as a local test input; not redistributed (see public/samples/SOURCES.md)
+public/samples/desktop_2br.png
