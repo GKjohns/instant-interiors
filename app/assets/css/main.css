@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: 'Geist', sans-serif;
+  --font-display: 'Cormorant Garamond', 'Cormorant', Georgia, serif;
+}
+
+:root {
+  --ui-radius: 0.6rem;
+}
+
+/* Text that floats over the home: a soft dark bloom keeps it legible on bright walls without a panel. */
+@utility hud-glow {
+  text-shadow:
+    0 0 18px rgb(0 0 0 / 0.55),
+    0 1px 2px rgb(0 0 0 / 0.5);
+}
